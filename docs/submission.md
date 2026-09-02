@@ -33,7 +33,7 @@ Stack: Next.js 16 (static export), React 19, TypeScript, Tailwind 4, shadcn/ui, 
 
 ## Links
 - Live URL: TODO
-- Repo: TODO
+- Repo: https://github.com/mehmetcanbozkus/duet-studio
 - Video: TODO
 
 ## Video script (under 3 minutes)
