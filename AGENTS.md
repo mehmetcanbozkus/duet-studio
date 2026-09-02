@@ -10,52 +10,42 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md
 
+## What this is
+
+Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP Challenge (Sept 2026). A step sequencer and piano roll expose the whole song as WebMCP tools on `document.modelContext`, so a browser agent (ChatGPT's built-in browser, Chrome with the WebMCP flag) can read and edit the song alongside the human.
+
 ## Documentation
 
 - Use Context7 MCP for current library, framework, SDK, API, CLI, and cloud service documentation before answering or coding against those tools.
+- WebMCP spec: https://webmachinelearning.github.io/webmcp/ ; Chrome docs: https://developer.chrome.com/docs/ai/webmcp ; ChatGPT site tools: https://learn.chatgpt.com/docs/webmcp
 
 ## Commands
 
 - Package manager: Bun.
 - `bun run dev` starts the development server.
-- `bun run build` creates a production build.
+- `bun run build` creates the static export in `out/`.
 - `bun run check` runs lint, typecheck, and formatting checks.
-- `bun run lint` runs ESLint.
-- `bun run typecheck` runs TypeScript checks.
-- `bun run format` formats with Prettier and sorts Tailwind classes.
-- `bun run db:push` pushes the Drizzle schema in development.
-- `bun run db:generate` generates Drizzle migrations.
-- `bun run db:migrate` applies Drizzle migrations.
-- `bun run db:studio` opens Drizzle Studio.
+- `bun run smoke` runs the headless WebMCP smoke test (needs Chromium at /usr/bin/chromium and a server at http://localhost:3000).
 
 ## Stack
 
-- Next.js 16 App Router, React 19, and strict TypeScript.
-- React Compiler and typed routes are enabled in `next.config.ts`.
-- Better Auth handles email/password authentication in `src/server/auth.ts`.
-- Drizzle ORM and PostgreSQL live under `src/server/db/`.
-- Tailwind CSS 4, shadcn/ui, Radix UI, and Lucide are used for UI.
-- t3-env validates environment variables in `src/env.ts`.
+- Next.js 16 App Router (static export), React 19, strict TypeScript, React Compiler.
+- Tailwind CSS 4, shadcn/ui (Base UI primitives), Lucide icons.
+- Tone.js for audio, tonal for music theory, zustand + zundo for state and undo history, lz-string for share links.
+- `use-webmcp-tool` (Chrome Labs) registers tools with `document.modelContext`.
+
+## Architecture
+
+- `src/lib/studio/types.ts` — song model (drum tracks with per-step velocity and provenance, melodic tracks with notes).
+- `src/lib/studio/store.ts` — zustand store; every change goes through `commit(actor, label, mutate)` which records who did it.
+- `src/lib/studio/engine.ts` — Tone.js sequencer that re-reads the song on every 16th note, so edits are heard live.
+- `src/lib/webmcp/tools.ts` — the WebMCP tool specs (name, description, JSON schema, execute). `when` makes a tool conditional (e.g. `edit_selection` only exists while the human has a selection).
+- `src/components/studio/agent-tools.tsx` — mounts one `useWebMCP` hook per tool spec.
+- `src/components/studio/*` — UI. The studio is loaded with `next/dynamic` and `ssr: false` because it touches Web Audio, localStorage and `document.modelContext`.
 
 ## Code Style
 
-- Prefer existing project patterns over new abstractions.
+- Prefer existing project patterns and existing libraries over new abstractions.
 - Use `@/*` imports for files under `src`.
-- Keep Server Components as the default and add `"use client"` only for interactivity.
-- Use `src/server/actions/` for Server Actions that are imported by Client Components.
-- For form mutations, validate with Zod on the server, verify auth inside the action, model expected errors as return values, and consume them with `useActionState`.
-
-## Environment
-
-- Copy `.env.example` to `.env` and fill in values.
-- Required: `DATABASE_URL`, `BETTER_AUTH_SECRET` (minimum 32 characters), and `BETTER_AUTH_URL`.
-- Use a local or managed PostgreSQL instance and set `DATABASE_URL`.
-- `SKIP_ENV_VALIDATION=1` bypasses env checks for temporary local builds.
-
-## Architecture Notes
-
-- Route groups: `(auth)` for sign-in/sign-up and `(pages)` for protected pages.
-- `src/proxy.ts` performs optimistic auth redirects only; server-side checks still protect pages and mutations.
-- `requireSession()` redirects unauthenticated users from protected server-rendered pages.
-- `getSession()` uses React `cache()` for request-level deduplication.
-- The database connection uses a `globalThis` cache to survive HMR in development.
+- Everything under `src/components/studio` is client-only. Keep zustand selectors stable (use `useShallow` when returning arrays/objects).
+- Tool `execute` functions return plain objects and throw `Error` with an actionable message on bad input; the hook turns those into MCP `isError` results.

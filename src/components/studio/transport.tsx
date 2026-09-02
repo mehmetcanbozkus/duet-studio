@@ -12,7 +12,6 @@ import { useStore } from "zustand";
 
 import { AddTrackMenu } from "./add-track-menu";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { togglePlay } from "@/lib/studio/playback";
@@ -41,7 +40,8 @@ export function Transport() {
       <Button
         onClick={() => void togglePlay()}
         size="lg"
-        className="w-28"
+        className="w-24"
+        title="Play or stop (Space)"
         aria-pressed={playing}
       >
         {playing ? (
@@ -50,7 +50,6 @@ export function Transport() {
           <Play data-icon="inline-start" />
         )}
         {playing ? "Stop" : "Play"}
-        <Kbd className="ml-1 hidden sm:inline-flex">Space</Kbd>
       </Button>
 
       <label className="flex items-center gap-2 text-sm">
