@@ -15,7 +15,7 @@ An agent cannot listen to audio, and it cannot reliably click a 32 × 12 grid of
 
 - **`get_song` gives the agent ears.** It returns the song as a compact text grid (`|X...x...X...x...|`) plus structured JSON, so the model "sees" what the human is hearing and can reason about groove, density and harmony.
 - **Write tools are musical, not mechanical.** `set_drum_pattern` takes a pattern string, `set_notes` takes note names and lengths, `humanize` adds velocity variation. One call replaces dozens of fragile clicks.
-- **The human's pointer becomes context.** Shift-drag across steps and a new tool, `edit_selection`, appears (and disappears when the selection clears, via the `toolchange` lifecycle). "Make *these* steps a snare fill" is now something an agent can do exactly.
+- **The human's pointer becomes context.** Shift-drag across steps and a new tool, `edit_selection`, appears (and disappears when the selection clears, via the `toolchange` lifecycle). "Make _these_ steps a snare fill" is now something an agent can do exactly.
 - **Destructive actions stay human-gated.** `clear_song` opens an approve/decline dialog in the app and only proceeds if the human approves. The agent learns the outcome either way.
 - **Every change is attributed.** Cells and notes are tinted by who wrote them (amber = you, violet = agent), and a session log shows each tool call with a one-click revert. Undo/redo covers both of you.
 
@@ -28,21 +28,21 @@ An agent cannot listen to audio, and it cannot reliably click a 32 × 12 grid of
 
 ## The tools
 
-| Tool | Kind | What it does |
-| --- | --- | --- |
-| `get_song` | read | Full song as text grid + JSON, transport state, human selection |
-| `list_instruments` | read | Instrument ids, character, recommended pitch ranges |
-| `get_scale_notes` | read | Notes of a scale within a range (music theory helper) |
-| `set_tempo` | write | BPM and swing |
-| `set_playback` | write | Start/stop the loop (after the human has clicked once, per browser autoplay rules) |
-| `set_song_meta` | write | Title, key, scale, bars (1/2/4) |
-| `add_track` / `remove_track` / `update_track` | write | Tracks and mixer (volume, mute, solo, rename) |
-| `set_drum_pattern` | write | Replace a drum pattern (`X` accent, `x` hit, `o` soft, `.` rest), whole song or one bar |
-| `set_notes` | write | Write melodic notes (replace or merge), chords by stacking notes |
-| `humanize` | write | Velocity variation on one or all tracks |
-| `undo` / `redo` | write | Shared history |
-| `clear_song` | write, gated | Requires human approval in the UI |
-| `edit_selection` | write, dynamic | Only registered while the human has a selection: clear, transpose, scale velocity, set pattern/notes on exactly that range |
+| Tool                                          | Kind           | What it does                                                                                                               |
+| --------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `get_song`                                    | read           | Full song as text grid + JSON, transport state, human selection                                                            |
+| `list_instruments`                            | read           | Instrument ids, character, recommended pitch ranges                                                                        |
+| `get_scale_notes`                             | read           | Notes of a scale within a range (music theory helper)                                                                      |
+| `set_tempo`                                   | write          | BPM and swing                                                                                                              |
+| `set_playback`                                | write          | Start/stop the loop (after the human has clicked once, per browser autoplay rules)                                         |
+| `set_song_meta`                               | write          | Title, key, scale, bars (1/2/4)                                                                                            |
+| `add_track` / `remove_track` / `update_track` | write          | Tracks and mixer (volume, mute, solo, rename)                                                                              |
+| `set_drum_pattern`                            | write          | Replace a drum pattern (`X` accent, `x` hit, `o` soft, `.` rest), whole song or one bar                                    |
+| `set_notes`                                   | write          | Write melodic notes (replace or merge), chords by stacking notes                                                           |
+| `humanize`                                    | write          | Velocity variation on one or all tracks                                                                                    |
+| `undo` / `redo`                               | write          | Shared history                                                                                                             |
+| `clear_song`                                  | write, gated   | Requires human approval in the UI                                                                                          |
+| `edit_selection`                              | write, dynamic | Only registered while the human has a selection: clear, transpose, scale velocity, set pattern/notes on exactly that range |
 
 Read tools carry `readOnlyHint: true`. Bad input throws an actionable error (for example "No track matches 'nope'. Available: Kick (id …), …") which reaches the agent as an `isError` result.
 
@@ -84,12 +84,12 @@ Without WebMCP the studio is still a complete, fully usable sequencer.
 
 The app is a static export with no server or environment variables. Any static host works:
 
-| Host | Build command | Output directory |
-| --- | --- | --- |
-| Vercel | auto-detected (`next build`) | auto-detected (`out`) |
-| Cloudflare Pages | `bun run build` | `out` |
-| Netlify | `bun run build` | `out` |
-| Render (static site) | `bun run build` | `out` |
+| Host                 | Build command                | Output directory      |
+| -------------------- | ---------------------------- | --------------------- |
+| Vercel               | auto-detected (`next build`) | auto-detected (`out`) |
+| Cloudflare Pages     | `bun run build`              | `out`                 |
+| Netlify              | `bun run build`              | `out`                 |
+| Render (static site) | `bun run build`              | `out`                 |
 
 ## License
 

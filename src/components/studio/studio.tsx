@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 
+import { AgentPanel } from "./agent-panel";
 import { AgentTools } from "./agent-tools";
 import { ActivityFeed } from "./activity-feed";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -87,6 +88,7 @@ export function Studio() {
         </div>
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
           <Sidebar />
+          <AgentPanel />
           <ActivityFeed />
         </aside>
       </div>
