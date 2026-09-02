@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { defaultSong } from "./song";
+import { parseSong } from "./song-schema";
 import type { ActivityEntry, Actor, Selection, Song } from "./types";
 
 export interface PendingConfirm {
@@ -144,6 +145,16 @@ export const useStudio = create<StudioState>()(
     {
       name: "duet-studio-v1",
       partialize: (state) => ({ song: state.song }),
+      // localStorage is just another untrusted input: repair what we can, otherwise start fresh.
+      merge: (persisted, current) => {
+        const song = (persisted as { song?: unknown } | undefined)?.song;
+        if (song === undefined) return current;
+        try {
+          return { ...current, song: parseSong(song) };
+        } catch {
+          return current;
+        }
+      },
     },
   ),
 );

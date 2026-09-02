@@ -34,10 +34,13 @@ export function Studio() {
   // Load a shared song from the URL hash.
   useEffect(() => {
     const shared = readSongFromHash();
-    if (shared) {
-      loadSong(shared, "Opened a shared song");
-      window.history.replaceState(null, "", window.location.pathname);
-      toast.success(`Loaded "${shared.title}" from the link`);
+    if (!shared) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if ("song" in shared) {
+      loadSong(shared.song, "Opened a shared song");
+      toast.success(`Loaded "${shared.song.title}" from the link`);
+    } else {
+      toast.error("That link does not contain a valid song.");
     }
   }, [loadSong]);
 

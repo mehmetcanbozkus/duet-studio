@@ -116,6 +116,24 @@ console.log("set_notes:", r.message);
 r = text(await call("set_tempo", { bpm: 96, swing: 0.2 }));
 console.log("set_tempo:", r.message);
 
+// validation: schema is advisory, the code must reject bad types and impossible combinations
+const banana = await call("set_tempo", { bpm: "banana" });
+console.log(
+  "set_tempo bpm=banana isError:",
+  banana.isError,
+  "->",
+  banana.content[0].text.slice(0, 100),
+);
+const wrongKind = await call("add_track", {
+  instrument: "bass",
+  pattern: "x.x.",
+});
+console.log("add_track bass+pattern isError:", wrongKind.isError);
+const noop = await call("update_track", { track: "Kick" });
+console.log("update_track no-op isError:", noop.isError);
+r = text(await call("get_song"));
+console.log("bpm still a number after bad input:", r.song.bpm);
+
 // error path
 const bad = await call("set_drum_pattern", { track: "nope", pattern: "x" });
 console.log(

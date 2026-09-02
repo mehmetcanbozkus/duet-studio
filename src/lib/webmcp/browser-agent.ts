@@ -8,7 +8,7 @@ import {
 } from "ai";
 
 import { useStudio } from "@/lib/studio/store";
-import { TOOLS } from "@/lib/webmcp/tools";
+import { TOOLS, runTool } from "@/lib/webmcp/tools";
 import { getModelContext, type RegisteredTool } from "@/lib/webmcp/types";
 
 export const DEFAULT_MODEL = "gpt-5.6";
@@ -82,29 +82,12 @@ async function discoverTools(): Promise<{
         inputSchema: spec.inputSchema,
         run: async (input) => {
           try {
-            const result = await spec.execute(
-              (input ?? {}) as Record<string, unknown>,
-            );
-            if (spec.annotations?.readOnlyHint) {
-              useStudio.getState().logActivity({
-                actor: "agent",
-                label: spec.readLabel ?? spec.name,
-                tool: spec.name,
-                args: input,
-              });
-            }
-            return result;
+            return await runTool(spec, input);
           } catch (error) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            useStudio.getState().logActivity({
-              actor: "agent",
-              label: `${spec.name} failed`,
-              tool: spec.name,
-              args: input,
-              error: message,
-            });
-            return { isError: true, error: message };
+            return {
+              isError: true,
+              error: error instanceof Error ? error.message : String(error),
+            };
           }
         },
       }),

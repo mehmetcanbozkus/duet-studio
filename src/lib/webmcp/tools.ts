@@ -1,5 +1,9 @@
 import { compactTrack, describeSong } from "@/lib/studio/format";
-import { INSTRUMENTS, isInstrument } from "@/lib/studio/instruments";
+import {
+  INSTRUMENTS,
+  isDrumInstrument,
+  isInstrument,
+} from "@/lib/studio/instruments";
 import { play, stop } from "@/lib/studio/playback";
 import {
   applyPattern,
@@ -27,6 +31,7 @@ import {
 } from "@/lib/studio/types";
 
 import type { JsonSchema, ToolAnnotations } from "./types";
+import { validateInput } from "./validate";
 
 export interface ToolSpec<Args = Record<string, unknown>> {
   name: string;
@@ -111,17 +116,20 @@ const NOTE_ITEM_SCHEMA = {
   properties: {
     step: {
       type: "integer",
+      minimum: 0,
       description:
         "0-indexed 16th-note step (0-15 in bar 1, 16-31 in bar 2, ...)",
     },
     note: {
-      type: "string",
-      description: 'Scientific pitch such as "A2", "C#3", "Bb1"',
+      type: ["string", "integer"],
+      description:
+        'Scientific pitch such as "A2", "C#3", "Bb1", or a MIDI number',
     },
     length: {
       type: "integer",
       description: "Length in steps, default 1",
       minimum: 1,
+      maximum: 64,
     },
     velocity: {
       type: "number",
@@ -136,6 +144,7 @@ const NOTE_ITEM_SCHEMA = {
 
 const TRACK_REF = {
   type: "string",
+  maxLength: 64,
   description:
     "Track id (preferred), exact track name, instrument id, or 1-based position from get_song",
 };
@@ -206,6 +215,7 @@ export const TOOLS: ToolSpec[] = [
       properties: {
         root: {
           type: "string",
+          maxLength: 3,
           description:
             'Root pitch class, e.g. "A", "F#", "Bb". Defaults to the song key.',
         },
@@ -216,10 +226,12 @@ export const TOOLS: ToolSpec[] = [
         },
         low_note: {
           type: "string",
+          maxLength: 4,
           description: 'Lowest note to include, e.g. "A1". Default C2.',
         },
         high_note: {
           type: "string",
+          maxLength: 4,
           description: 'Highest note to include, e.g. "A4". Default C5.',
         },
       },
@@ -237,6 +249,8 @@ export const TOOLS: ToolSpec[] = [
         );
       const low = args.low_note ? noteToMidi(String(args.low_note)) : 36;
       const high = args.high_note ? noteToMidi(String(args.high_note)) : 72;
+      if (low > high)
+        throw new Error("low_note must not be higher than high_note");
       const notes = scaleNotesInRange(root, scale, low, high).map(midiToNote);
       return { root: normalizePitchClass(root), scale, notes };
     },
@@ -314,14 +328,25 @@ export const TOOLS: ToolSpec[] = [
     inputSchema: {
       type: "object",
       properties: {
-        title: { type: "string" },
-        key: { type: "string", description: 'Pitch class such as "A" or "F#"' },
+        title: { type: "string", maxLength: 60 },
+        key: {
+          type: "string",
+          maxLength: 3,
+          description: 'Pitch class such as "A" or "F#"',
+        },
         scale: { type: "string", enum: SCALE_NAMES },
         bars: { type: "integer", enum: [1, 2, 4] },
       },
       additionalProperties: false,
     },
     execute: (args) => {
+      if (
+        args.title === undefined &&
+        args.key === undefined &&
+        args.scale === undefined &&
+        args.bars === undefined
+      )
+        throw new Error("Provide title, key, scale and/or bars");
       commit("Updated song settings", "set_song_meta", args, (draft) => {
         if (typeof args.title === "string" && args.title.trim())
           draft.title = args.title.trim().slice(0, 60);
@@ -358,15 +383,18 @@ export const TOOLS: ToolSpec[] = [
         instrument: { type: "string", enum: INSTRUMENTS.map((i) => i.id) },
         name: {
           type: "string",
+          maxLength: 32,
           description: "Display name, defaults to the instrument label",
         },
         pattern: {
           type: "string",
+          maxLength: 96,
           description: 'Drums only, e.g. "x.x.x.x.x.x.x.x."',
         },
         notes: {
           type: "array",
           items: NOTE_ITEM_SCHEMA,
+          maxItems: 256,
           description: "Melodic only",
         },
       },
@@ -378,6 +406,15 @@ export const TOOLS: ToolSpec[] = [
       if (!isInstrument(instrument))
         throw new Error(
           `Unknown instrument "${instrument}". Call list_instruments.`,
+        );
+      const drum = isDrumInstrument(instrument);
+      if (drum && args.notes !== undefined)
+        throw new Error(
+          `"${instrument}" is a drum instrument: give it a pattern, not notes.`,
+        );
+      if (!drum && args.pattern !== undefined)
+        throw new Error(
+          `"${instrument}" is melodic: give it notes, not a pattern.`,
         );
       let id = "";
       commit(`Added ${instrument} track`, "add_track", args, (draft) => {
@@ -435,7 +472,7 @@ export const TOOLS: ToolSpec[] = [
       type: "object",
       properties: {
         track: TRACK_REF,
-        name: { type: "string" },
+        name: { type: "string", maxLength: 32 },
         volume: { type: "number", minimum: 0, maximum: 1 },
         mute: { type: "boolean" },
         solo: { type: "boolean" },
@@ -444,6 +481,13 @@ export const TOOLS: ToolSpec[] = [
       additionalProperties: false,
     },
     execute: (args) => {
+      if (
+        args.name === undefined &&
+        args.volume === undefined &&
+        args.mute === undefined &&
+        args.solo === undefined
+      )
+        throw new Error("Provide at least one of name, volume, mute, solo");
       let summary = "";
       commit("Updated a track", "update_track", args, (draft) => {
         const track = findTrack(draft, String(args.track));
@@ -468,6 +512,7 @@ export const TOOLS: ToolSpec[] = [
         track: TRACK_REF,
         pattern: {
           type: "string",
+          maxLength: 96,
           description: 'e.g. "X...x...X...x..." or "x.x.x.x.x.x.x.x."',
         },
         bar: {
@@ -505,7 +550,7 @@ export const TOOLS: ToolSpec[] = [
       type: "object",
       properties: {
         track: TRACK_REF,
-        notes: { type: "array", items: NOTE_ITEM_SCHEMA },
+        notes: { type: "array", items: NOTE_ITEM_SCHEMA, maxItems: 256 },
         mode: { type: "string", enum: ["replace", "merge"] },
       },
       required: ["track", "notes"],
@@ -663,12 +708,14 @@ export const TOOLS: ToolSpec[] = [
         },
         pattern: {
           type: "string",
+          maxLength: 96,
           description:
             "For set_pattern; length must equal the selection length",
         },
         notes: {
           type: "array",
           items: NOTE_ITEM_SCHEMA,
+          maxItems: 256,
           description: "For set_notes; step 0 = first selected step",
         },
       },
@@ -702,7 +749,9 @@ export const TOOLS: ToolSpec[] = [
             case "transpose": {
               if (track.kind !== "melodic")
                 throw new Error("transpose only works on melodic tracks");
-              const semis = Math.round(Number(args.semitones ?? 0));
+              if (args.semitones === undefined)
+                throw new Error("transpose needs semitones");
+              const semis = Math.round(Number(args.semitones));
               track.notes = track.notes.map((n) =>
                 inRange(n.step)
                   ? { ...n, pitch: clamp(n.pitch + semis, 0, 127), by: AGENT }
@@ -712,7 +761,9 @@ export const TOOLS: ToolSpec[] = [
               break;
             }
             case "scale_velocity": {
-              const factor = clamp(Number(args.factor ?? 1), 0, 2);
+              if (args.factor === undefined)
+                throw new Error("scale_velocity needs factor");
+              const factor = clamp(Number(args.factor), 0, 2);
               if (track.kind === "drum") {
                 for (let i = from; i <= to; i++) {
                   if (track.steps[i] > 0) {
@@ -736,7 +787,9 @@ export const TOOLS: ToolSpec[] = [
             case "set_pattern": {
               if (track.kind !== "drum")
                 throw new Error("set_pattern only works on drum tracks");
-              const values = parsePattern(String(args.pattern ?? ""));
+              if (args.pattern === undefined)
+                throw new Error("set_pattern needs pattern");
+              const values = parsePattern(String(args.pattern));
               if (values.length !== length) {
                 throw new Error(
                   `Pattern must have exactly ${length} steps to match the selection`,
@@ -784,3 +837,34 @@ function widenRange(track: MelodicTrack) {
 }
 
 export const STEP_HINT = `Steps are 0-indexed 16ths, ${STEPS_PER_BAR} per bar.`;
+
+/**
+ * The single entry point for running a tool, whichever agent is calling: validates the input
+ * against the tool's schema, executes, and records the call in the activity feed. Throws with an
+ * actionable message on bad input; callers turn that into an `isError` result.
+ */
+export async function runTool(spec: ToolSpec, rawArgs: unknown) {
+  let args: Record<string, unknown> = {};
+  try {
+    args = validateInput(spec.inputSchema, rawArgs);
+    const result = await spec.execute(args);
+    if (spec.annotations?.readOnlyHint) {
+      state().logActivity({
+        actor: AGENT,
+        label: spec.readLabel ?? `Called ${spec.name}`,
+        tool: spec.name,
+        args,
+      });
+    }
+    return result;
+  } catch (error) {
+    state().logActivity({
+      actor: AGENT,
+      label: `${spec.name} failed`,
+      tool: spec.name,
+      args: rawArgs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}

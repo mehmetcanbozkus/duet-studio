@@ -5,11 +5,26 @@ export interface ToolAnnotations {
   untrustedContentHint?: boolean;
 }
 
-export interface JsonSchema {
-  type: "object";
-  properties: Record<string, unknown>;
+/** The JSON Schema subset used by the tool specs and enforced by `validateInput`. */
+export interface SchemaNode {
+  type?: string | string[];
+  description?: string;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  items?: SchemaNode;
+  properties?: Record<string, SchemaNode>;
   required?: string[];
   additionalProperties?: boolean;
+}
+
+export interface JsonSchema extends SchemaNode {
+  type: "object";
+  properties: Record<string, SchemaNode>;
 }
 
 export interface ModelContextTool<Input = Record<string, unknown>> {
