@@ -52,6 +52,7 @@ Read tools carry `readOnlyHint: true`. Bad input throws an actionable error (for
 - **Tone.js** drives the sequencer. It re-reads the song on every 16th note, so edits from either party are heard on the next step.
 - **tonal** for music theory, **zustand + zundo** for state and undo history, **lz-string** for share links.
 - **[`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool)** (Chrome Labs) registers each tool with `document.modelContext.registerTool` and unregisters via `AbortSignal` when the component unmounts or `enabled` flips.
+- **Vercel AI SDK** (`ai` + `@ai-sdk/openai`) runs the built-in fallback agent's tool loop with `dynamicTool` definitions built from the discovered WebMCP tools.
 
 Key files:
 
@@ -61,6 +62,7 @@ src/components/studio/agent-tools.tsx # mounts one useWebMCP hook per tool
 src/lib/studio/store.ts               # zustand store; commit(actor, label, mutate) records provenance
 src/lib/studio/engine.ts              # Tone.js engine
 src/lib/studio/format.ts              # the text grid the agent reads
+src/lib/webmcp/browser-agent.ts       # fallback agent: getTools() -> dynamicTool -> executeTool()
 scripts/webmcp-smoke.mjs              # headless test that drives the real document.modelContext API
 ```
 
@@ -77,6 +79,8 @@ bun run build      # static export in out/
 - **ChatGPT desktop app**: open the URL in the built-in browser and pick **Site tools** in the address bar. Use GPT-5.6 Sol or Terra.
 - **Chrome 149+**: enable `chrome://flags/#enable-webmcp-testing`, then use Gemini in Chrome or the [Model Context Tool Inspector](https://github.com/beaufortfrancois/model-context-tool-inspector) extension to call tools by hand.
 - **Headless smoke test** (Chromium at `/usr/bin/chromium`): `bun run smoke` registers the tools, calls them through `document.modelContext.executeTool`, exercises the selection-scoped tool and the confirmation dialog, and takes a screenshot.
+
+- **Built-in agent (no special browser needed)**: the sidebar has a fallback agent. Paste your own OpenAI API key (it stays in your browser's localStorage) and chat. It discovers the very same tools through `document.modelContext.getTools()` and invokes them with `executeTool()`, so it exercises the WebMCP path an external agent would; in a browser without WebMCP it calls the tool specs directly.
 
 Without WebMCP the studio is still a complete, fully usable sequencer.
 
