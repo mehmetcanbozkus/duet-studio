@@ -5,6 +5,8 @@ Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) (September 
 
 > Live demo: _coming soon_ · Demo video: _coming soon_
 
+![Duet Studio: a kick, hats, bass and snare track; violet cells were written by the agent, the teal range is the human's selection, and the session log on the right lists every tool call](docs/screenshot.png)
+
 Duet Studio is a step sequencer and piano roll that runs entirely in the browser. Every part of the song — tempo, swing, tracks, drum hits, notes, mixer, transport — is exposed as a [WebMCP](https://webmachinelearning.github.io/webmcp/) tool on `document.modelContext`. Open it in ChatGPT's built-in browser (or Chrome with the WebMCP flag) and the agent can hear what you hear, write alongside you, and act on exactly the steps you point at.
 
 ## Why WebMCP fits
