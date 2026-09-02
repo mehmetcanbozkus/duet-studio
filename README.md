@@ -80,6 +80,17 @@ bun run build      # static export in out/
 
 Without WebMCP the studio is still a complete, fully usable sequencer.
 
+### Deploy
+
+The app is a static export with no server or environment variables. Any static host works:
+
+| Host | Build command | Output directory |
+| --- | --- | --- |
+| Vercel | auto-detected (`next build`) | auto-detected (`out`) |
+| Cloudflare Pages | `bun run build` | `out` |
+| Netlify | `bun run build` | `out` |
+| Render (static site) | `bun run build` | `out` |
+
 ## License
 
 MIT
