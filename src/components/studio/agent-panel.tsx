@@ -1,7 +1,7 @@
 "use client";
 
 import type { ModelMessage } from "ai";
-import { Bot, KeyRound, Loader2, Send, Wrench } from "lucide-react";
+import { Bot, KeyRound, Loader2, Send, Trash2, Wrench } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -14,6 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_MODEL,
   runBrowserAgent,
@@ -24,12 +26,36 @@ import { cn } from "@/lib/utils";
 const KEY_STORAGE = "duet-studio-openai-key";
 const MODEL_STORAGE = "duet-studio-openai-model";
 
-function readStorage(key: string) {
+type StorageKind = "local" | "session";
+
+function readStorage(kind: StorageKind, key: string) {
   try {
-    return localStorage.getItem(key);
+    const store =
+      kind === "local" ? window.localStorage : window.sessionStorage;
+    return store.getItem(key);
   } catch {
     return null;
   }
+}
+
+function writeStorage(kind: StorageKind, key: string, value: string | null) {
+  try {
+    const store =
+      kind === "local" ? window.localStorage : window.sessionStorage;
+    if (value === null) store.removeItem(key);
+    else store.setItem(key, value);
+  } catch {
+    // storage unavailable
+  }
+}
+
+/**
+ * The key is kept in sessionStorage (gone when the tab closes). It only reaches localStorage when
+ * the visitor explicitly asks to be remembered on this device.
+ */
+function persistKey(key: string, remember: boolean) {
+  writeStorage("session", KEY_STORAGE, key || null);
+  writeStorage("local", KEY_STORAGE, remember && key ? key : null);
 }
 
 interface Line {
@@ -44,9 +70,17 @@ interface Line {
  * can try the collaboration even without an agent-enabled browser.
  */
 export function AgentPanel() {
-  const [apiKey, setApiKey] = useState(() => readStorage(KEY_STORAGE) ?? "");
+  const [remember, setRemember] = useState(
+    () => readStorage("local", KEY_STORAGE) !== null,
+  );
+  const [apiKey, setApiKey] = useState(
+    () =>
+      readStorage("local", KEY_STORAGE) ??
+      readStorage("session", KEY_STORAGE) ??
+      "",
+  );
   const [model, setModel] = useState(
-    () => readStorage(MODEL_STORAGE) ?? DEFAULT_MODEL,
+    () => readStorage("local", MODEL_STORAGE) ?? DEFAULT_MODEL,
   );
   const [prompt, setPrompt] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
@@ -65,21 +99,22 @@ export function AgentPanel() {
       [...prev, { id: ++idRef.current, role, text }].slice(-60),
     );
 
+  const forgetKey = () => {
+    setApiKey("");
+    persistKey("", false);
+    toast.success("Key removed from this browser.");
+  };
+
   const send = async () => {
     const text = prompt.trim();
     if (!text || busy) return;
-    if (!apiKey.trim()) {
-      toast.error(
-        "Add an OpenAI API key first. It stays in this browser only.",
-      );
+    const key = apiKey.trim();
+    if (!key) {
+      toast.error("Add an OpenAI API key first.");
       return;
     }
-    try {
-      localStorage.setItem(KEY_STORAGE, apiKey.trim());
-      localStorage.setItem(MODEL_STORAGE, model.trim() || DEFAULT_MODEL);
-    } catch {
-      // storage unavailable
-    }
+    persistKey(key, remember);
+    writeStorage("local", MODEL_STORAGE, model.trim() || DEFAULT_MODEL);
     setPrompt("");
     push("you", text);
     setBusy(true);
@@ -96,7 +131,7 @@ export function AgentPanel() {
       );
     try {
       historyRef.current = await runBrowserAgent({
-        apiKey: apiKey.trim(),
+        apiKey: key,
         model: model.trim() || DEFAULT_MODEL,
         messages: [...historyRef.current, { role: "user", content: text }],
         onEvent: (event) => {
@@ -135,7 +170,8 @@ export function AgentPanel() {
             <Input
               type="password"
               autoComplete="off"
-              placeholder="sk-… (stored only in this browser)"
+              spellCheck={false}
+              placeholder="sk-… (kept in this tab)"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               className="pl-7 text-xs"
@@ -150,6 +186,37 @@ export function AgentPanel() {
             title="OpenAI model id"
           />
         </div>
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-muted-foreground text-xs font-normal">
+            <Switch
+              size="sm"
+              checked={remember}
+              onCheckedChange={(checked) => {
+                setRemember(checked);
+                persistKey(apiKey.trim(), checked);
+              }}
+            />
+            Remember on this device
+          </Label>
+          {apiKey && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground h-6 px-2 text-xs"
+              onClick={forgetKey}
+            >
+              <Trash2 data-icon="inline-start" />
+              Forget key
+            </Button>
+          )}
+        </div>
+        <p className="text-muted-foreground text-[11px] leading-snug">
+          The key goes from this tab straight to api.openai.com and is kept in
+          this tab&apos;s session storage until you close it. Any script running
+          on this page could read it, so use a key with a spending limit and
+          revoke it after your demo.
+        </p>
         {lines.length > 0 && (
           <div
             ref={listRef}

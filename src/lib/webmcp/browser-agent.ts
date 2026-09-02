@@ -47,23 +47,30 @@ async function discoverTools(): Promise<{
     typeof mc.getTools === "function" &&
     typeof mc.executeTool === "function"
   ) {
-    const registered: RegisteredTool[] = await mc.getTools();
-    return {
-      via: "webmcp",
-      tools: registered.map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema ?? { type: "object", properties: {} },
-        run: async (input) => {
-          const raw = await mc.executeTool!(t, JSON.stringify(input ?? {}));
-          try {
-            return JSON.parse(raw) as unknown;
-          } catch {
-            return raw;
-          }
-        },
-      })),
-    };
+    try {
+      const registered: RegisteredTool[] = await mc.getTools();
+      return {
+        via: "webmcp",
+        tools: registered.map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema ?? { type: "object", properties: {} },
+          run: async (input) => {
+            const raw = await mc.executeTool!(t, JSON.stringify(input ?? {}));
+            try {
+              return JSON.parse(raw) as unknown;
+            } catch {
+              return raw;
+            }
+          },
+        })),
+      };
+    } catch (error) {
+      console.warn(
+        "[duet-studio] document.modelContext.getTools failed, calling tools directly",
+        error,
+      );
+    }
   }
   const state = useStudio.getState();
   return {

@@ -8,6 +8,7 @@ import { AgentTools } from "./agent-tools";
 import { ActivityFeed } from "./activity-feed";
 import { ConfirmDialog } from "./confirm-dialog";
 import { Header } from "./header";
+import { Safe } from "./safe";
 import { Sequencer } from "./sequencer";
 import { Sidebar } from "./sidebar";
 import { Transport } from "./transport";
@@ -88,12 +89,16 @@ export function Studio() {
         </div>
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
           <Sidebar />
-          <AgentPanel />
+          <Safe name="Built-in agent">
+            <AgentPanel />
+          </Safe>
           <ActivityFeed />
         </aside>
       </div>
       <ConfirmDialog />
-      <AgentTools />
+      <Safe name="WebMCP tools" silent>
+        <AgentTools />
+      </Safe>
     </div>
   );
 }

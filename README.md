@@ -79,8 +79,9 @@ bun run build      # static export in out/
 - **ChatGPT desktop app**: open the URL in the built-in browser and pick **Site tools** in the address bar. Use GPT-5.6 Sol or Terra.
 - **Chrome 149+**: enable `chrome://flags/#enable-webmcp-testing`, then use Gemini in Chrome or the [Model Context Tool Inspector](https://github.com/beaufortfrancois/model-context-tool-inspector) extension to call tools by hand.
 - **Headless smoke test** (Chromium at `/usr/bin/chromium`): `bun run smoke` registers the tools, calls them through `document.modelContext.executeTool`, exercises the selection-scoped tool and the confirmation dialog, and takes a screenshot.
+- **Host compatibility probe**: `bun run smoke:hosts` loads the page with a stand-in `document.modelContext` that only implements `registerTool` (no events, no `getTools`, the shape ChatGPT's built-in browser documents), once at load and once injected 2.5 s later, and checks that the studio renders and all tools register.
 
-- **Built-in agent (no special browser needed)**: the sidebar has a fallback agent. Paste your own OpenAI API key (it stays in your browser's localStorage) and chat. It discovers the very same tools through `document.modelContext.getTools()` and invokes them with `executeTool()`, so it exercises the WebMCP path an external agent would; in a browser without WebMCP it calls the tool specs directly.
+- **Built-in agent (no special browser needed)**: the sidebar has a fallback agent. Paste your own OpenAI API key and chat. The key is sent from the page straight to api.openai.com and kept in the tab's sessionStorage; it only goes to localStorage if you switch on "Remember on this device". Any script on the page could read it, so use a key with a spending limit and revoke it afterwards. It discovers the very same tools through `document.modelContext.getTools()` and invokes them with `executeTool()`, so it exercises the WebMCP path an external agent would; in a browser without WebMCP it calls the tool specs directly.
 
 Without WebMCP the studio is still a complete, fully usable sequencer.
 

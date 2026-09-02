@@ -4,6 +4,7 @@ import { Code2, Music2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AgentStatus } from "./agent-status";
+import { Safe } from "./safe";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { songShareUrl } from "@/lib/studio/share";
@@ -49,7 +50,9 @@ export function Header() {
           }
         />
         <div className="ml-auto flex items-center gap-2">
-          <AgentStatus />
+          <Safe name="Agent status">
+            <AgentStatus />
+          </Safe>
           <Button variant="outline" size="sm" onClick={share}>
             <Share2 data-icon="inline-start" />
             Share
