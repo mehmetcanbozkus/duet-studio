@@ -36,8 +36,10 @@ await page
   )
   .catch(() => undefined);
 
-const call = (name, args = {}) =>
-  page.evaluate(
+const OUTPUT_BUDGET = 1500; // Chrome's guidance for a single tool output
+const sizes = [];
+const call = async (name, args = {}) => {
+  const raw = await page.evaluate(
     async (name, args) => {
       const tools = await document.modelContext.getTools();
       const tool = tools.find((t) => t.name === name);
@@ -45,15 +47,14 @@ const call = (name, args = {}) =>
         throw new Error(
           `tool ${name} not registered; have: ${tools.map((t) => t.name).join(",")}`,
         );
-      const raw = await document.modelContext.executeTool(
-        tool,
-        JSON.stringify(args),
-      );
-      return JSON.parse(raw);
+      return document.modelContext.executeTool(tool, JSON.stringify(args));
     },
     name,
     args,
   );
+  sizes.push({ name, chars: raw.length });
+  return JSON.parse(raw);
+};
 const text = (r) => {
   try {
     return JSON.parse(r.content[0].text);
@@ -73,8 +74,13 @@ if (names.length === 0) {
   process.exit(1);
 }
 
-let r = text(await call("get_song"));
-console.log("--- get_song text ---\n" + r.text);
+let grid = text(await call("get_song"));
+console.log("--- get_song text ---\n" + grid);
+console.log(
+  "--- list_instruments ---\n" + text(await call("list_instruments")),
+);
+
+let r;
 
 r = text(
   await call("add_track", {
@@ -83,7 +89,7 @@ r = text(
     pattern: "....X.......X...",
   }),
 );
-console.log("add_track:", r.message);
+console.log("add_track:", r.message, "->", r.track.pattern);
 console.log("new track id:", r.track.id);
 
 r = text(
@@ -92,7 +98,7 @@ r = text(
     pattern: "x.x.x.x.x.x.x.x.",
   }),
 );
-console.log("set_drum_pattern:", r.message);
+console.log("set_drum_pattern:", r.message, "->", r.track.pattern);
 
 r = text(
   await call("set_notes", {
@@ -111,7 +117,7 @@ r = text(
     ],
   }),
 );
-console.log("set_notes:", r.message);
+console.log("set_notes:", r.message, "->", r.track.notes);
 
 r = text(await call("set_tempo", { bpm: 96, swing: 0.2 }));
 console.log("set_tempo:", r.message);
@@ -131,8 +137,8 @@ const wrongKind = await call("add_track", {
 console.log("add_track bass+pattern isError:", wrongKind.isError);
 const noop = await call("update_track", { track: "Kick" });
 console.log("update_track no-op isError:", noop.isError);
-r = text(await call("get_song"));
-console.log("bpm still a number after bad input:", r.song.bpm);
+grid = text(await call("get_song"));
+console.log("bpm still a number after bad input:", /(\d+) BPM/.exec(grid)?.[1]);
 
 // error path
 const bad = await call("set_drum_pattern", { track: "nope", pattern: "x" });
@@ -167,15 +173,15 @@ has = await page.evaluate(async () =>
   ),
 );
 console.log("edit_selection after selection:", has);
-r = text(await call("get_song"));
+grid = text(await call("get_song"));
 console.log(
   "selection line:",
-  r.text.split("\n").find((l) => l.includes("selected")),
+  grid.split("\n").find((l) => l.includes("selected")),
 );
 r = text(
   await call("edit_selection", { action: "set_pattern", pattern: "x.xxx.xX" }),
 );
-console.log("edit_selection:", r.message);
+console.log("edit_selection:", r.message, "->", r.track.pattern);
 
 // playback via agent: audio unlocked by autoplay policy flag in headless
 r = await call("set_playback", { playing: true });
@@ -207,6 +213,12 @@ const ruler = await page.$eval(
 console.log("ruler text:", ruler);
 await page.screenshot({ path: shot, fullPage: false });
 console.log("screenshot:", shot);
+const biggest = [...sizes].sort((a, b) => b.chars - a.chars)[0];
+const overBudget = sizes.filter((s) => s.chars > OUTPUT_BUDGET);
+console.log(
+  `tool outputs: ${sizes.length} calls, largest ${biggest.name} = ${biggest.chars} chars, over ${OUTPUT_BUDGET}: ${overBudget.length}`,
+);
+overBudget.forEach((s) => console.log("   OVER BUDGET:", s.name, s.chars));
 console.log("console errors/warnings:", errors.length);
 errors.slice(0, 10).forEach((e) => console.log("  ", e));
 await browser.close();

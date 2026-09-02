@@ -1,4 +1,8 @@
-import { compactTrack, describeSong } from "@/lib/studio/format";
+import {
+  describeSong,
+  songHeadline,
+  summarizeTrack,
+} from "@/lib/studio/format";
 import {
   INSTRUMENTS,
   isDrumInstrument,
@@ -22,7 +26,6 @@ import {
   scaleNotesInRange,
 } from "@/lib/studio/theory";
 import {
-  STEPS_PER_BAR,
   totalSteps,
   type Actor,
   type MelodicTrack,
@@ -60,18 +63,16 @@ function commit(
   state().commit(AGENT, label, mutate, { tool, args });
 }
 
-function snapshot(message: string, extra?: Record<string, unknown>) {
-  const s = state();
-  return {
-    message,
-    ...extra,
-    song_after: describeSong(s.song, {
-      playing: s.playing,
-      step: s.currentStep,
-      selection: s.selection,
-    }),
-  };
+/**
+ * Write tools answer with one line plus the track they touched. The agent already knows the rest
+ * of the song from get_song, and Chrome asks tool outputs to stay under ~1.5K characters.
+ */
+function changed(message: string, trackId: string) {
+  return { message, track: summarizeTrack(findTrack(state().song, trackId)) };
 }
+
+/** Song title and track names are typed by the human or arrive via share links: not ours. */
+const ECHOES_SONG_TEXT: ToolAnnotations = { untrustedContentHint: true };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -153,41 +154,27 @@ export const TOOLS: ToolSpec[] = [
   {
     name: "get_song",
     description:
-      "Read the whole song: tempo, swing, bars, key/scale, every track with its drum pattern or notes, transport state and the human's current selection. Call this first, and again after the human says they changed something.",
+      "Read the whole song as text: tempo, swing, bars, key/scale, one line per track, transport state and the human's current selection. Call this first, and again after the human says they changed something. Steps are 0-indexed 16ths, 16 per bar. Drum patterns: X accent, x hit, o soft, . rest, bars split by |. Melodic notes: step:Note(length in steps).",
     inputSchema: {
       type: "object",
       properties: {},
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, ...ECHOES_SONG_TEXT },
     readLabel: "Read the song",
     execute: () => {
       const s = state();
-      return {
-        text: describeSong(s.song, {
-          playing: s.playing,
-          step: s.currentStep,
-          selection: s.selection,
-        }),
-        song: {
-          title: s.song.title,
-          bpm: s.song.bpm,
-          swing: s.song.swing,
-          bars: s.song.bars,
-          total_steps: totalSteps(s.song),
-          key: s.song.key,
-          scale: s.song.scale,
-          playing: s.playing,
-          selection: s.selection,
-          tracks: s.song.tracks.map(compactTrack),
-        },
-      };
+      return describeSong(s.song, {
+        playing: s.playing,
+        step: s.currentStep,
+        selection: s.selection,
+      });
     },
   },
   {
     name: "list_instruments",
     description:
-      "List the available drum and melodic instruments with their ids, character and recommended pitch ranges.",
+      "List the available instruments: id, drum or melodic, character and recommended pitch range. Drums take patterns, melodic instruments take notes.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -196,15 +183,9 @@ export const TOOLS: ToolSpec[] = [
     annotations: { readOnlyHint: true },
     readLabel: "Listed instruments",
     execute: () =>
-      INSTRUMENTS.map((i) => ({
-        id: i.id,
-        kind: i.kind,
-        label: i.label,
-        description: i.description,
-        range: i.range
-          ? `${midiToNote(i.range[0])}-${midiToNote(i.range[1])}`
-          : undefined,
-      })),
+      INSTRUMENTS.map((i) => `${i.id} (${i.kind}): ${i.description}`).join(
+        "\n",
+      ),
   },
   {
     name: "get_scale_notes",
@@ -339,6 +320,7 @@ export const TOOLS: ToolSpec[] = [
       },
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
       if (
         args.title === undefined &&
@@ -401,6 +383,7 @@ export const TOOLS: ToolSpec[] = [
       required: ["instrument"],
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
       const instrument = String(args.instrument);
       if (!isInstrument(instrument))
@@ -439,10 +422,7 @@ export const TOOLS: ToolSpec[] = [
         draft.tracks.push(track);
         id = track.id;
       });
-      const track = findTrack(state().song, id);
-      return snapshot(`Added track "${track.name}" with id ${id}.`, {
-        track: compactTrack(track),
-      });
+      return changed(`Added track "${findTrack(state().song, id).name}".`, id);
     },
   },
   {
@@ -454,6 +434,7 @@ export const TOOLS: ToolSpec[] = [
       required: ["track"],
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
       let name = "";
       commit("Removed a track", "remove_track", args, (draft) => {
@@ -480,6 +461,7 @@ export const TOOLS: ToolSpec[] = [
       required: ["track"],
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
       if (
         args.name === undefined &&
@@ -525,8 +507,9 @@ export const TOOLS: ToolSpec[] = [
       required: ["track", "pattern"],
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
-      let name = "";
+      let id = "";
       commit("Wrote a drum pattern", "set_drum_pattern", args, (draft) => {
         const track = findTrack(draft, String(args.track));
         if (track.kind !== "drum")
@@ -537,9 +520,9 @@ export const TOOLS: ToolSpec[] = [
           AGENT,
           args.bar === undefined ? undefined : Number(args.bar),
         );
-        name = track.name;
+        id = track.id;
       });
-      return snapshot(`Updated "${name}".`);
+      return changed("Pattern written.", id);
     },
   },
   {
@@ -556,8 +539,9 @@ export const TOOLS: ToolSpec[] = [
       required: ["track", "notes"],
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
-      let name = "";
+      let id = "";
       commit("Wrote notes", "set_notes", args, (draft) => {
         const track = findTrack(draft, String(args.track));
         if (track.kind !== "melodic")
@@ -572,9 +556,12 @@ export const TOOLS: ToolSpec[] = [
         track.notes =
           args.mode === "merge" ? [...track.notes, ...notes] : notes;
         widenRange(track);
-        name = track.name;
+        id = track.id;
       });
-      return snapshot(`Updated "${name}".`);
+      return changed(
+        `${args.mode === "merge" ? "Merged" : "Wrote"} ${(args.notes as NoteInput[]).length} note(s).`,
+        id,
+      );
     },
   },
   {
@@ -622,15 +609,17 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "undo",
-    description: "Undo the last change (by anyone).",
+    description:
+      "Undo the last change (by anyone). Call get_song afterwards if you need the details.",
     inputSchema: {
       type: "object",
       properties: {},
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: () =>
       undo(AGENT)
-        ? snapshot("Undid the last change.")
+        ? { message: `Undone. Now: ${songHeadline(state().song)}` }
         : { message: "Nothing to undo." },
   },
   {
@@ -641,9 +630,10 @@ export const TOOLS: ToolSpec[] = [
       properties: {},
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     execute: () =>
       redo(AGENT)
-        ? snapshot("Redid the change.")
+        ? { message: `Redone. Now: ${songHeadline(state().song)}` }
         : { message: "Nothing to redo." },
   },
   {
@@ -722,6 +712,7 @@ export const TOOLS: ToolSpec[] = [
       required: ["action"],
       additionalProperties: false,
     },
+    annotations: ECHOES_SONG_TEXT,
     when: (s) => s.selection !== null,
     execute: (args) => {
       const selection = state().selection;
@@ -821,7 +812,10 @@ export const TOOLS: ToolSpec[] = [
           }
         },
       );
-      return snapshot(`Applied ${String(args.action)} to steps ${from}-${to}.`);
+      return changed(
+        `Applied ${String(args.action)} to steps ${from}-${to}.`,
+        selection.trackId,
+      );
     },
   },
 ];
@@ -835,8 +829,6 @@ function widenRange(track: MelodicTrack) {
       track.highNote = Math.min(127, note.pitch + (11 - (note.pitch % 12)));
   }
 }
-
-export const STEP_HINT = `Steps are 0-indexed 16ths, ${STEPS_PER_BAR} per bar.`;
 
 /**
  * The single entry point for running a tool, whichever agent is calling: validates the input

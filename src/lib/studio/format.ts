@@ -3,6 +3,7 @@ import { midiToNote, velocityToChar } from "./theory";
 import {
   STEPS_PER_BAR,
   totalSteps,
+  type Note,
   type Selection,
   type Song,
   type Track,
@@ -17,31 +18,44 @@ export function patternString(steps: number[]) {
   return out;
 }
 
-export function compactTrack(track: Track) {
-  const base = {
-    id: track.id,
-    name: track.name,
-    kind: track.kind,
-    instrument: track.instrument,
-    volume: Number(track.volume.toFixed(2)),
-    mute: track.mute,
-    solo: track.solo,
-  };
-  if (track.kind === "drum") {
-    return { ...base, pattern: patternString(track.steps) };
+/** Notes as "step:Note(length)" tokens, sorted by step then pitch. */
+export function notesString(notes: Note[], maxChars = 800) {
+  const sorted = [...notes].sort(
+    (a, b) => a.step - b.step || a.pitch - b.pitch,
+  );
+  const tokens = sorted.map(
+    (n) =>
+      `${n.step}:${midiToNote(n.pitch)}${n.length > 1 ? `(${n.length})` : ""}`,
+  );
+  let out = "";
+  for (let i = 0; i < tokens.length; i++) {
+    const next = out ? `${out} ${tokens[i]}` : tokens[i];
+    if (next.length > maxChars) {
+      return `${out} … +${tokens.length - i} more (${tokens.length} notes total)`;
+    }
+    out = next;
   }
+  return out;
+}
+
+/** One track, small enough to return from a write tool: what changed, nothing else. */
+export function summarizeTrack(track: Track) {
+  const base = { id: track.id, name: track.name, instrument: track.instrument };
+  if (track.kind === "drum")
+    return { ...base, pattern: patternString(track.steps) };
   return {
     ...base,
-    range: `${midiToNote(track.lowNote)}-${midiToNote(track.highNote)}`,
-    notes: [...track.notes]
-      .sort((a, b) => a.step - b.step || a.pitch - b.pitch)
-      .map((n) => ({
-        step: n.step,
-        note: midiToNote(n.pitch),
-        length: n.length,
-        velocity: Number(n.velocity.toFixed(2)),
-      })),
+    notes: track.notes.length === 0 ? "(no notes)" : notesString(track.notes),
   };
+}
+
+/** One line: title, tempo, length and track names. */
+export function songHeadline(song: Song) {
+  const tracks =
+    song.tracks.length === 0
+      ? "no tracks"
+      : `${song.tracks.length} track${song.tracks.length > 1 ? "s" : ""}: ${song.tracks.map((t) => t.name).join(", ")}`;
+  return `"${song.title}" — ${song.bpm} BPM, ${song.bars} bar${song.bars > 1 ? "s" : ""}, ${tracks}.`;
 }
 
 /** Human-and-agent readable snapshot of the song. */
@@ -52,7 +66,7 @@ export function describeSong(
   const total = totalSteps(song);
   const lines: string[] = [];
   lines.push(
-    `"${song.title}" — ${song.bpm} BPM, swing ${Math.round(song.swing * 100)}%, ${song.bars} bar${song.bars > 1 ? "s" : ""} (${total} steps, ${STEPS_PER_BAR} per bar, steps are 0-indexed 16th notes), key ${song.key} ${song.scale.replace("_", " ")}.`,
+    `"${song.title}" — ${song.bpm} BPM, swing ${Math.round(song.swing * 100)}%, ${song.bars} bar${song.bars > 1 ? "s" : ""} (steps 0-${total - 1}), key ${song.key} ${song.scale.replace("_", " ")}.`,
   );
   lines.push(
     extra.playing
@@ -75,13 +89,7 @@ export function describeSong(
       } else if (track.notes.length === 0) {
         lines.push("   (no notes)");
       } else {
-        const notes = [...track.notes]
-          .sort((a, b) => a.step - b.step || a.pitch - b.pitch)
-          .map(
-            (n) =>
-              `${n.step}:${midiToNote(n.pitch)}${n.length > 1 ? `(${n.length})` : ""}`,
-          );
-        lines.push(`   ${notes.join(" ")}`);
+        lines.push(`   ${notesString(track.notes)}`);
       }
     });
   }
@@ -93,8 +101,5 @@ export function describeSong(
       );
     }
   }
-  lines.push(
-    "Pattern legend: X accent, x hit, o soft, . rest; bars separated by |. Melodic notation: step:Note(length in steps).",
-  );
   return lines.join("\n");
 }

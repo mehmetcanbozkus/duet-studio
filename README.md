@@ -13,7 +13,7 @@ Duet Studio is a step sequencer and piano roll that runs entirely in the browser
 
 An agent cannot listen to audio, and it cannot reliably click a 32 × 12 grid of tiny cells. Both problems disappear with tools:
 
-- **`get_song` gives the agent ears.** It returns the song as a compact text grid (`|X...x...X...x...|`) plus structured JSON, so the model "sees" what the human is hearing and can reason about groove, density and harmony.
+- **`get_song` gives the agent ears.** It returns the song as a compact text grid (`|X...x...X...x...|`, one line per track), so the model "sees" what the human is hearing and can reason about groove, density and harmony. Write tools answer with one line plus the track they touched, keeping every output well under Chrome's 1.5K-character guidance.
 - **Write tools are musical, not mechanical.** `set_drum_pattern` takes a pattern string, `set_notes` takes note names and lengths, `humanize` adds velocity variation. One call replaces dozens of fragile clicks.
 - **The human's pointer becomes context.** Shift-drag across steps and a new tool, `edit_selection`, appears (and disappears when the selection clears, via the `toolchange` lifecycle). "Make _these_ steps a snare fill" is now something an agent can do exactly.
 - **Destructive actions stay human-gated.** `clear_song` opens an approve/decline dialog in the app and only proceeds if the human approves. The agent learns the outcome either way.
@@ -30,7 +30,7 @@ An agent cannot listen to audio, and it cannot reliably click a 32 × 12 grid of
 
 | Tool                                          | Kind           | What it does                                                                                                               |
 | --------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `get_song`                                    | read           | Full song as text grid + JSON, transport state, human selection                                                            |
+| `get_song`                                    | read           | Full song as a text grid, transport state, human selection                                                                 |
 | `list_instruments`                            | read           | Instrument ids, character, recommended pitch ranges                                                                        |
 | `get_scale_notes`                             | read           | Notes of a scale within a range (music theory helper)                                                                      |
 | `set_tempo`                                   | write          | BPM and swing                                                                                                              |
@@ -44,7 +44,7 @@ An agent cannot listen to audio, and it cannot reliably click a 32 × 12 grid of
 | `clear_song`                                  | write, gated   | Requires human approval in the UI                                                                                          |
 | `edit_selection`                              | write, dynamic | Only registered while the human has a selection: clear, transpose, scale velocity, set pattern/notes on exactly that range |
 
-Read tools carry `readOnlyHint: true`. Bad input throws an actionable error (for example "No track matches 'nope'. Available: Kick (id …), …") which reaches the agent as an `isError` result.
+Read tools carry `readOnlyHint: true`. Every tool whose output can echo the song title or track names carries `untrustedContentHint: true`, because that text is typed by the human or arrives through share links. Bad input throws an actionable error (for example "No track matches 'nope'. Available: Kick (id …), …") which reaches the agent as an `isError` result.
 
 ## How it is built
 
