@@ -8,7 +8,8 @@ import {
 } from "ai";
 
 import { useStudio } from "@/lib/studio/store";
-import { TOOLS, runTool } from "@/lib/webmcp/tools";
+import { runTrackedTool } from "@/lib/webmcp/register";
+import { TOOLS } from "@/lib/webmcp/tools";
 import { getModelContext, type RegisteredTool } from "@/lib/webmcp/types";
 
 export const DEFAULT_MODEL = "gpt-5.6";
@@ -107,7 +108,7 @@ async function discoverTools(): Promise<{
         inputSchema: spec.inputSchema,
         run: async (input, signal) => {
           try {
-            return await runTool(spec, input, { signal });
+            return await runTrackedTool(spec, input, { signal });
           } catch (error) {
             return {
               isError: true,

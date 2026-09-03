@@ -1,4 +1,5 @@
 import { runTool, type ToolSpec } from "./tools";
+import { useWebMCPRuntime } from "./runtime";
 import type { ModelContext, ToolExecuteOptions, ToolResult } from "./types";
 
 function safeStringify(value: unknown) {
@@ -28,6 +29,48 @@ export function toErrorResult(error: unknown): ToolResult {
   return { content: [{ type: "text", text }], isError: true };
 }
 
+function resultSummary(value: unknown, fallback: string) {
+  if (typeof value === "object" && value !== null && "message" in value) {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return `${fallback} completed.`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : safeStringify(error);
+}
+
+function isCanceled(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+/** Run a tool while exposing its page-local lifecycle to the human-facing UI. */
+export async function runTrackedTool(
+  spec: ToolSpec,
+  input: unknown,
+  options: ToolExecuteOptions = {},
+) {
+  const runtime = useWebMCPRuntime.getState();
+  const executionId = runtime.startExecution(spec.name, spec.title);
+  try {
+    const value = await runTool(spec, input, options);
+    runtime.finishExecution(
+      executionId,
+      "completed",
+      resultSummary(value, spec.title),
+    );
+    return value;
+  } catch (error) {
+    runtime.finishExecution(
+      executionId,
+      isCanceled(error) ? "canceled" : "error",
+      isCanceled(error) ? `${spec.title} canceled.` : errorMessage(error),
+    );
+    throw error;
+  }
+}
+
 /** Run a tool the way a host calls it: validated, logged, result shaped as MCP content. */
 export async function runToolForHost(
   spec: ToolSpec,
@@ -35,7 +78,7 @@ export async function runToolForHost(
   options: ToolExecuteOptions = {},
 ): Promise<ToolResult> {
   try {
-    return toToolResult(await runTool(spec, input, options));
+    return toToolResult(await runTrackedTool(spec, input, options));
   } catch (error) {
     return toErrorResult(error);
   }

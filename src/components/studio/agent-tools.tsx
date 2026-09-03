@@ -5,35 +5,46 @@ import { toast } from "sonner";
 
 import { useStudio } from "@/lib/studio/store";
 import { registerSpec } from "@/lib/webmcp/register";
+import { useWebMCPRuntime } from "@/lib/webmcp/runtime";
 import { TOOLS, type ToolSpec } from "@/lib/webmcp/tools";
 import { type ModelContext } from "@/lib/webmcp/types";
 import { useModelContext } from "@/lib/webmcp/use-model-context";
 
 function ToolRegistration({ mc, spec }: { mc: ModelContext; spec: ToolSpec }) {
   const enabled = useStudio((s) => (spec.when ? spec.when(s) : true));
+  const setRegistration = useWebMCPRuntime((s) => s.setRegistration);
+  const removeRegistration = useWebMCPRuntime((s) => s.removeRegistration);
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
     let active = true;
-    registerSpec(mc, spec, controller.signal).catch((error: unknown) => {
-      // Cleanup aborted the registration (StrictMode remount, tool disabled, unmount): expected.
-      if (!active) return;
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[duet-studio] registerTool(${spec.name}) failed`, error);
-      // One toast for the whole batch: a permissions-policy failure hits every tool at once.
-      toast.error("The browser refused to register the agent tools", {
-        id: "webmcp-register",
-        description: message,
+    setRegistration(spec.name, { status: "registering" });
+    registerSpec(mc, spec, controller.signal)
+      .then(() => {
+        if (active) setRegistration(spec.name, { status: "ready" });
+      })
+      .catch((error: unknown) => {
+        // Cleanup aborted the registration (StrictMode remount, tool disabled, unmount): expected.
+        if (!active) return;
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        const message = error instanceof Error ? error.message : String(error);
+        setRegistration(spec.name, { status: "error", error: message });
+        console.warn(`[duet-studio] registerTool(${spec.name}) failed`, error);
+        // One toast for the whole batch: a permissions-policy failure hits every tool at once.
+        toast.error("The browser refused to register the agent tools", {
+          id: "webmcp-register",
+          description: message,
+        });
       });
-    });
     return () => {
       active = false;
+      removeRegistration(spec.name);
       // Aborting the signal is how WebMCP unregisters a tool.
       controller.abort();
     };
-  }, [mc, spec, enabled]);
+  }, [mc, spec, enabled, removeRegistration, setRegistration]);
 
   return null;
 }

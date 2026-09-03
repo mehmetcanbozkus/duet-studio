@@ -53,10 +53,13 @@ while (Date.now() < deadline) {
 await new Promise((r) => setTimeout(r, 600));
 const status = await page.evaluate(() => {
   const btn = [...document.querySelectorAll("button")].find((b) =>
-    /agent tools live|No agent detected/.test(b.textContent ?? ""),
+    /agent tools ready|Setting up agent tools|No agent detected/.test(
+      b.textContent ?? "",
+    ),
   );
   return btn?.textContent?.trim() ?? "(status button missing)";
 });
+const statusReady = status === `${count} agent tools ready`;
 const crashed = await page.evaluate(() =>
   document.body.innerText.includes("Something went wrong"),
 );
@@ -65,10 +68,18 @@ const toolNames = await page.evaluate(() => [
 ]);
 console.log(
   JSON.stringify(
-    { mode, crashed, status, registered: count, toolNames, errors },
+    {
+      mode,
+      crashed,
+      status,
+      statusReady,
+      registered: count,
+      toolNames,
+      errors,
+    },
     null,
     2,
   ),
 );
 await browser.close();
-process.exit(crashed || count < 15 || errors.length ? 1 : 0);
+process.exit(crashed || count < 15 || !statusReady || errors.length ? 1 : 0);

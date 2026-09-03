@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { activityReceipt } from "@/lib/studio/activity-receipt";
 import { useStudio } from "@/lib/studio/store";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ export function ActivityFeed() {
             <ol className="flex flex-col gap-1">
               {activity.map((entry) => {
                 const agent = entry.actor === "agent";
+                const receipt = activityReceipt(entry);
                 return (
                   <li
                     key={entry.id}
@@ -59,7 +61,7 @@ export function ActivityFeed() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-medium">{entry.label}</span>
+                        <span className="font-medium">{receipt}</span>
                         {entry.tool && (
                           <Badge
                             variant="outline"
