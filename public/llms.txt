@@ -2,7 +2,7 @@
 
 > A browser music studio where a human and an AI agent produce a track together. The whole song — tempo, swing, tracks, drum hits, notes, mixer and transport — is exposed as WebMCP tools on `document.modelContext`, so an agent in the page can read and edit the music alongside the person using it.
 
-Duet Studio is a step sequencer and piano roll that runs entirely in the browser: no account, no server-side song state. Open it in a WebMCP-capable browser (ChatGPT's built-in browser, or Chrome with the WebMCP flag) and the agent gets ears and hands for the song instead of having to click a 32 × 12 grid of tiny cells.
+Duet Studio is a step sequencer and piano roll that runs entirely in the browser: no account, and the song lives in the tab unless the human makes a share link. Open it in a WebMCP-capable browser (ChatGPT's built-in browser, or Chrome with the WebMCP flag) and the agent gets ears and hands for the song instead of having to click a 32 × 12 grid of tiny cells.
 
 Every edit is attributed to whoever made it (amber = human, violet = agent), a session log lists each tool call with one-click revert, and undo/redo is shared between both parties.
 
@@ -10,7 +10,7 @@ Every edit is attributed to whoever made it (amber = human, violet = agent), a s
 
 Read tools (all carry `readOnlyHint`):
 
-- `get_song` — the full song as a compact text grid (`|X...x...X...x...|`, one line per track), plus transport state and the human's current selection
+- `get_song` — the song as a compact text grid (`|X...x...X...x...|`, one line per track), plus transport state and the human's current selection; long note lists are shortened to stay inside the output budget, and `track` reads one track in full
 - `get_recent_changes` — human song edits since the agent's previous song observation
 - `list_instruments` — instrument ids, character and recommended pitch ranges
 - `get_scale_notes` — the notes of a scale within a range
@@ -31,7 +31,7 @@ Write tools:
 
 ## Pages
 
-- [Studio](https://github.com/mehmetcanbozkus/duet-studio): the app itself is a single page at `/`; `/?s=<id>` opens a shared song
+- [Studio](https://duetstudio.mehmetcan.me/): the app itself is a single page at `/`; `/?s=<id>` opens a shared song
 - [README](https://github.com/mehmetcanbozkus/duet-studio/blob/main/README.md): what it is, why WebMCP fits, and how it is built
 - [Source](https://github.com/mehmetcanbozkus/duet-studio): full source, MIT licensed
 

@@ -45,3 +45,8 @@ next-env.d.ts
 
 # research notes
 .firecrawl/
+.tts-samples/
+
+# devpost submission drafts and plugin state (not part of the product)
+.devpost-hackathon-state.json
+devpost-submission.md
