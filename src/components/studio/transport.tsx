@@ -40,81 +40,109 @@ export function Transport() {
   const swingPercent = Math.round(swing * 100);
 
   return (
+    // One row on a wide screen. Narrower than that it wraps, so the controls are
+    // grouped: each group stays whole and the rows break at meaningful seams
+    // instead of wherever a control happens to land.
     <div className="bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
-      <Button
-        onClick={() => void togglePlay()}
-        size="lg"
-        className="w-24"
-        title="Play or stop (Space)"
-        aria-pressed={playing}
-      >
-        {playing ? (
-          <Square data-icon="inline-start" />
-        ) : (
-          <Play data-icon="inline-start" />
-        )}
-        {playing ? "Stop" : "Play"}
-      </Button>
-
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">BPM</span>
-        <input
-          type="number"
-          min={40}
-          max={240}
-          value={bpm}
-          onChange={(e) => {
-            const value = Math.min(
-              240,
-              Math.max(40, Number(e.target.value) || 40),
-            );
-            commit("human", `Set tempo to ${value}`, (d) => {
-              d.bpm = value;
-            });
-          }}
-          className={`${selectClass} w-18 tabular-nums`}
-        />
-      </label>
-
-      <Field orientation="horizontal" className="w-auto">
-        <FieldTitle>Swing</FieldTitle>
-        <Slider
-          className="w-24! shrink-0"
-          min={0}
-          max={0.6}
-          step={0.02}
-          value={[swing]}
-          aria-label="Swing"
-          format={percentFormat}
-          onValueChange={(value) => {
-            const v = typeof value === "number" ? value : value[0];
-            commit("human", `Set swing to ${Math.round(v * 100)}%`, (d) => {
-              d.swing = v;
-            });
-          }}
-        />
-        <Badge variant="outline">{swingPercent}%</Badge>
-      </Field>
-
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Bars</span>
-        <select
-          className={selectClass}
-          value={bars}
-          onChange={(e) => {
-            const value = Number(e.target.value) as 1 | 2 | 4;
-            commit("human", `Set length to ${value} bar(s)`, (d) =>
-              resizeSong(d, value),
-            );
-          }}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={() => void togglePlay()}
+          size="lg"
+          className="w-24"
+          title="Play or stop (Space)"
+          aria-pressed={playing}
         >
-          {[1, 2, 4].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
+          {playing ? (
+            <Square data-icon="inline-start" />
+          ) : (
+            <Play data-icon="inline-start" />
+          )}
+          {playing ? "Stop" : "Play"}
+        </Button>
+
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">BPM</span>
+          <input
+            type="number"
+            min={40}
+            max={240}
+            value={bpm}
+            onChange={(e) => {
+              const value = Math.min(
+                240,
+                Math.max(40, Number(e.target.value) || 40),
+              );
+              commit("human", `Set tempo to ${value}`, (d) => {
+                d.bpm = value;
+              });
+            }}
+            className={`${selectClass} w-18 tabular-nums`}
+          />
+        </label>
+
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={!canUndo}
+            onClick={() => undo()}
+            aria-label="Undo"
+          >
+            <Undo2 />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={!canRedo}
+            onClick={() => redo()}
+            aria-label="Redo"
+          >
+            <Redo2 />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <Field orientation="horizontal" className="w-auto">
+          <FieldTitle>Swing</FieldTitle>
+          <Slider
+            className="w-24! shrink-0"
+            min={0}
+            max={0.6}
+            step={0.02}
+            value={[swing]}
+            aria-label="Swing"
+            format={percentFormat}
+            onValueChange={(value) => {
+              const v = typeof value === "number" ? value : value[0];
+              commit("human", `Set swing to ${Math.round(v * 100)}%`, (d) => {
+                d.swing = v;
+              });
+            }}
+          />
+          <Badge variant="outline">{swingPercent}%</Badge>
+        </Field>
+
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Bars</span>
+          <select
+            className={selectClass}
+            value={bars}
+            onChange={(e) => {
+              const value = Number(e.target.value) as 1 | 2 | 4;
+              commit("human", `Set length to ${value} bar(s)`, (d) =>
+                resizeSong(d, value),
+              );
+            }}
+          >
+            {[1, 2, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <label className="flex items-center gap-2 text-sm">
         <span className="text-muted-foreground">Key</span>
@@ -152,28 +180,9 @@ export function Transport() {
         </select>
       </label>
 
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled={!canUndo}
-          onClick={() => undo()}
-          aria-label="Undo"
-        >
-          <Undo2 />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled={!canRedo}
-          onClick={() => redo()}
-          aria-label="Redo"
-        >
-          <Redo2 />
-        </Button>
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
+      {/* Pushed right only once the whole bar fits on one line; on a wrapped
+          bar it stays flush left with everything else. */}
+      <div className="flex items-center gap-2 xl:ml-auto">
         <Toggle
           pressed={selectMode}
           onPressedChange={setSelectMode}

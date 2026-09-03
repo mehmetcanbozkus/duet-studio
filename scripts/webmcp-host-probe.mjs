@@ -51,13 +51,15 @@ while (Date.now() < deadline) {
 }
 // Give the status badge a moment to re-render after detection.
 await new Promise((r) => setTimeout(r, 600));
+// Read the accessible name, not the text: below `sm` the button also renders a
+// compact "17/17" label so the header fits on a phone.
 const status = await page.evaluate(() => {
   const btn = [...document.querySelectorAll("button")].find((b) =>
     /agent tools ready|Setting up agent tools|No agent detected/.test(
-      b.textContent ?? "",
+      b.getAttribute("aria-label") ?? "",
     ),
   );
-  return btn?.textContent?.trim() ?? "(status button missing)";
+  return btn?.getAttribute("aria-label")?.trim() ?? "(status button missing)";
 });
 const statusReady = status === `${count} agent tools ready`;
 const crashed = await page.evaluate(() =>

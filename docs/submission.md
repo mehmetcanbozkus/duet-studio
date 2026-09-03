@@ -25,7 +25,7 @@ Nothing is hidden behind a chat window. The human keeps the transport running, t
 - Let the agent tidy velocities across the whole kit in one call, then undo just that if you disagree.
 - Hand off musical knowledge (scales, chord voicings, groove conventions) to the agent while keeping taste and the final say with the human.
 
-None of that is achievable by screen-scraping a sequencer grid, and none of it needs a backend or an account: the whole app is a static page.
+None of that is achievable by screen-scraping a sequencer grid, and none of it needs an account: the studio, the audio and the whole song live in the browser. The only server code is a share endpoint that swaps a song for a short link — decline it and the app still hands you a self-contained one.
 
 **How WebMCP is implemented**
 
@@ -35,17 +35,17 @@ Stack: Next.js 16, React 19, TypeScript, Tailwind 4, shadcn/ui, Tone.js, tonal, 
 
 ## Links
 
-- Live URL: TODO
+- Live URL: https://duetstudio.mehmetcan.me
 - Repo: https://github.com/mehmetcanbozkus/duet-studio
 - Video: TODO
 
 ## Video script (under 3 minutes)
 
 0:00 – 0:15 Title card over the app. "This is Duet Studio. A sequencer where my agent and I make a beat together, through WebMCP."
-0:15 – 0:35 Press Play. Tap a kick pattern by hand (amber cells). Show the agent status badge: "15 agent tools live".
+0:15 – 0:35 Press Play. Tap a kick pattern by hand (amber cells). Show the agent status badge: "17 agent tools ready".
 0:35 – 1:05 In the ChatGPT browser: "Look at my song and add a hi-hat groove that fits the kick, then a two-bar bassline in A minor." Show the agent calling get_song, then set_drum_pattern / add_track / set_notes. Violet cells appear while the loop keeps playing. Point out the session log.
 1:05 – 1:30 Drag a bass note somewhere odd. Ask: "I moved a note, adapt the pad chords to it." Agent reads the change, writes chords.
-1:30 – 1:55 Shift-drag steps 12–15 on the snare. Show the tool count go to 16 and edit_selection appear. "Make the steps I selected a snare fill." Agent fills exactly that range.
+1:30 – 1:55 Shift-drag steps 12–15 on the snare. Show the tool count go to 18 and edit_selection appear. "Make the steps I selected a snare fill." Agent fills exactly that range.
 1:55 – 2:15 "Humanize the hats and bring the tempo to 96 with some swing." Show velocity tints change and BPM update.
 2:15 – 2:35 Ask the agent to clear the song. The approve/decline dialog appears; click Decline. Show the agent receiving "the human declined".
-2:35 – 2:55 Copy the share link, show the repo and the tool list. "Every edit is attributed, everything is undoable, no backend, open source."
+2:35 – 2:55 Copy the share link, show the repo and the tool list. "Every edit is attributed, everything is undoable, open source."

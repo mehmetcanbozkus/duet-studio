@@ -47,7 +47,11 @@ import {
 } from "@/lib/webmcp/runtime";
 
 const CELL_W = 32;
-const GUTTER_W = 192;
+// The track gutter is a CSS variable (set on the grid root) so it can be
+// narrower on phones, and every offset derived from it stays in sync. It is
+// sticky, so the track you are editing stays visible while the steps scroll.
+const GUTTER = "var(--gutter)";
+const GUTTER_CLASS = "bg-card sticky left-0 z-10 shrink-0";
 
 function stepBorder(step: number) {
   if (step % STEPS_PER_BAR === 0) return "border-l-2 border-l-foreground/40";
@@ -137,116 +141,121 @@ function TrackHeader({
     });
 
   return (
-    <div
-      className={cn(
-        "flex h-10 shrink-0 flex-col justify-center gap-0.5 border-r px-2",
-        selected && "bg-muted/60",
-        agentTargeted && "bg-agent/10 ring-agent/50 ring-1 ring-inset",
-      )}
-      style={{ width: GUTTER_W }}
-      onClick={() => setSelectedTrack(track.id)}
-    >
-      <div className="flex items-center gap-1">
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            actorColor(track.createdBy),
-          )}
-          title={`Added by ${track.createdBy}`}
-        />
-        <span
-          className="truncate text-xs font-medium"
-          title={`${track.name} · ${info.label}`}
-        >
-          {track.name}
-        </span>
-        <span className="text-muted-foreground truncate text-[10px]">
-          {info.label}
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="ml-auto"
-                aria-label="Track menu"
-              />
-            }
+    // The outer layer carries the opaque background the steps scroll under; the
+    // inner one keeps the translucent selected/targeted tints.
+    <div className={GUTTER_CLASS} style={{ width: GUTTER }}>
+      <div
+        className={cn(
+          "flex h-10 flex-col justify-center gap-0.5 border-r px-2",
+          selected && "bg-muted/60",
+          agentTargeted && "bg-agent/10 ring-agent/50 ring-1 ring-inset",
+        )}
+        onClick={() => setSelectedTrack(track.id)}
+      >
+        <div className="flex items-center gap-1">
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              actorColor(track.createdBy),
+            )}
+            title={`Added by ${track.createdBy}`}
+          />
+          <span
+            className="truncate text-xs font-medium"
+            title={`${track.name} · ${info.label}`}
           >
-            <MoreHorizontal />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem
-              onClick={() => {
-                const name = window.prompt("Track name", track.name);
-                if (name?.trim())
-                  update(
-                    `Renamed track to ${name.trim()}`,
-                    (t) => (t.name = name.trim().slice(0, 32)),
-                  );
-              }}
-            >
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() =>
-                commit("human", `Removed ${track.name}`, (draft) => {
-                  draft.tracks = draft.tracks.filter((t) => t.id !== track.id);
-                })
+            {track.name}
+          </span>
+          <span className="text-muted-foreground truncate text-[10px]">
+            {info.label}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="ml-auto"
+                  aria-label="Track menu"
+                />
               }
             >
-              <Trash2 />
-              Remove
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="flex items-center gap-1">
-        <Toggle
-          size="sm"
-          pressed={track.mute}
-          onPressedChange={(v) =>
-            update(
-              v ? `Muted ${track.name}` : `Unmuted ${track.name}`,
-              (t) => (t.mute = v),
-            )
-          }
-          className="data-[pressed]:bg-destructive/20 data-[pressed]:text-destructive h-5 w-6 px-0 text-[10px]"
-          aria-label="Mute"
-          title="Mute"
-        >
-          <VolumeX className="size-3" />
-        </Toggle>
-        <Toggle
-          size="sm"
-          pressed={track.solo}
-          onPressedChange={(v) =>
-            update(
-              v ? `Soloed ${track.name}` : `Unsoloed ${track.name}`,
-              (t) => (t.solo = v),
-            )
-          }
-          className="data-[pressed]:bg-human/30 h-5 w-6 px-0 text-[10px]"
-          aria-label="Solo"
-          title="Solo"
-        >
-          <Headphones className="size-3" />
-        </Toggle>
-        <Slider
-          className="mx-1 w-16"
-          min={0}
-          max={1}
-          step={0.02}
-          value={track.volume}
-          aria-label="Volume"
-          onValueChange={(value) => {
-            const v = typeof value === "number" ? value : value[0];
-            update(`Set ${track.name} volume`, (t) => (t.volume = v));
-          }}
-        />
-        {children}
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem
+                onClick={() => {
+                  const name = window.prompt("Track name", track.name);
+                  if (name?.trim())
+                    update(
+                      `Renamed track to ${name.trim()}`,
+                      (t) => (t.name = name.trim().slice(0, 32)),
+                    );
+                }}
+              >
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() =>
+                  commit("human", `Removed ${track.name}`, (draft) => {
+                    draft.tracks = draft.tracks.filter(
+                      (t) => t.id !== track.id,
+                    );
+                  })
+                }
+              >
+                <Trash2 />
+                Remove
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="flex items-center gap-1">
+          <Toggle
+            size="sm"
+            pressed={track.mute}
+            onPressedChange={(v) =>
+              update(
+                v ? `Muted ${track.name}` : `Unmuted ${track.name}`,
+                (t) => (t.mute = v),
+              )
+            }
+            className="data-[pressed]:bg-destructive/20 data-[pressed]:text-destructive h-5 w-6 px-0 text-[10px]"
+            aria-label="Mute"
+            title="Mute"
+          >
+            <VolumeX className="size-3" />
+          </Toggle>
+          <Toggle
+            size="sm"
+            pressed={track.solo}
+            onPressedChange={(v) =>
+              update(
+                v ? `Soloed ${track.name}` : `Unsoloed ${track.name}`,
+                (t) => (t.solo = v),
+              )
+            }
+            className="data-[pressed]:bg-human/30 h-5 w-6 px-0 text-[10px]"
+            aria-label="Solo"
+            title="Solo"
+          >
+            <Headphones className="size-3" />
+          </Toggle>
+          <Slider
+            className="mx-1 min-w-0 flex-1"
+            min={0}
+            max={1}
+            step={0.02}
+            value={track.volume}
+            aria-label="Volume"
+            onValueChange={(value) => {
+              const v = typeof value === "number" ? value : value[0];
+              update(`Set ${track.name} volume`, (t) => (t.volume = v));
+            }}
+          />
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -404,11 +413,12 @@ function MelodicRoll({
           <div key={pitch} className="flex">
             <div
               className={cn(
-                "flex h-5 shrink-0 items-center justify-end border-r pr-2 font-mono text-[10px]",
+                "flex h-5 items-center justify-end border-r pr-2 font-mono text-[10px]",
+                GUTTER_CLASS,
                 inScale ? "text-foreground/80" : "text-muted-foreground/60",
                 isRoot && "font-semibold",
               )}
-              style={{ width: GUTTER_W }}
+              style={{ width: GUTTER }}
             >
               {midiToNote(pitch)}
             </div>
@@ -539,7 +549,7 @@ function AgentTargetOverlay({
       style={
         hasRange
           ? {
-              left: GUTTER_W + target.from! * CELL_W,
+              left: `calc(${GUTTER} + ${target.from! * CELL_W}px)`,
               width: (target.to! - target.from! + 1) * CELL_W,
             }
           : { left: 0, right: 0 }
@@ -596,17 +606,20 @@ export function Sequencer() {
   };
 
   return (
-    <div className="bg-card overflow-hidden rounded-xl border">
+    <div className="bg-card overflow-hidden rounded-xl border [--gutter:10rem] sm:[--gutter:12rem]">
       <div ref={scrollRef} className="overflow-x-auto">
         <div
           className="relative"
-          style={{ minWidth: GUTTER_W + total * CELL_W }}
+          style={{ minWidth: `calc(${GUTTER} + ${total * CELL_W}px)` }}
         >
           {/* ruler */}
           <div className="bg-muted/40 flex border-b">
             <div
-              className="text-muted-foreground flex shrink-0 items-center px-2 text-[11px]"
-              style={{ width: GUTTER_W }}
+              className={cn(
+                "text-muted-foreground flex items-center px-2 text-[11px]",
+                GUTTER_CLASS,
+              )}
+              style={{ width: GUTTER }}
             >
               {tracks.length} track{tracks.length === 1 ? "" : "s"}
             </div>
@@ -659,7 +672,10 @@ export function Sequencer() {
           {currentStep >= 0 && (
             <div
               className="bg-foreground/10 border-foreground/30 pointer-events-none absolute inset-y-0 border-x"
-              style={{ left: GUTTER_W + currentStep * CELL_W, width: CELL_W }}
+              style={{
+                left: `calc(${GUTTER} + ${currentStep * CELL_W}px)`,
+                width: CELL_W,
+              }}
             />
           )}
         </div>

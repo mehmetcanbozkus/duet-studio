@@ -108,8 +108,11 @@ export function Studio() {
     <div className="flex min-h-svh flex-1 flex-col">
       <Header />
       <Transport />
+      {/* Floated out of the flow on purpose: an in-flow banner would shove the
+          whole grid upwards the moment audio unlocks, which is a layout shift
+          for anything measuring the page — a human or an agent. */}
       {!audioReady && (
-        <p className="bg-muted/60 text-muted-foreground border-b px-4 py-1.5 text-center text-xs">
+        <p className="bg-muted/90 text-muted-foreground pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-full border px-3 py-1.5 text-center text-xs shadow-sm backdrop-blur-sm">
           Click anywhere once to enable audio. After that your agent can start
           and stop playback too.
         </p>

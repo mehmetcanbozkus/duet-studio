@@ -1,0 +1,41 @@
+# Duet Studio
+
+> A browser music studio where a human and an AI agent produce a track together. The whole song — tempo, swing, tracks, drum hits, notes, mixer and transport — is exposed as WebMCP tools on `document.modelContext`, so an agent in the page can read and edit the music alongside the person using it.
+
+Duet Studio is a step sequencer and piano roll that runs entirely in the browser: no account, no server-side song state. Open it in a WebMCP-capable browser (ChatGPT's built-in browser, or Chrome with the WebMCP flag) and the agent gets ears and hands for the song instead of having to click a 32 × 12 grid of tiny cells.
+
+Every edit is attributed to whoever made it (amber = human, violet = agent), a session log lists each tool call with one-click revert, and undo/redo is shared between both parties.
+
+## Tools the agent can call
+
+Read tools (all carry `readOnlyHint`):
+
+- `get_song` — the full song as a compact text grid (`|X...x...X...x...|`, one line per track), plus transport state and the human's current selection
+- `get_recent_changes` — human song edits since the agent's previous song observation
+- `list_instruments` — instrument ids, character and recommended pitch ranges
+- `get_scale_notes` — the notes of a scale within a range
+
+Write tools:
+
+- `set_tempo` — BPM and swing
+- `set_playback` — start/stop the loop (only after the human has clicked once, per browser autoplay rules)
+- `set_song_meta` — title, key, scale, bar count
+- `add_track`, `remove_track`, `update_track` — tracks and mixer (volume, mute, solo, rename)
+- `set_drum_pattern` — replace a drum pattern from text or a `{ hits, steps, rotate }` Euclidean rhythm
+- `set_notes` — write melodic notes, replacing or merging
+- `set_chords` — turn a scale-relative Roman-numeral progression into voiced chords
+- `humanize` — velocity variation on one or all tracks
+- `undo`, `redo` — the shared history
+- `clear_song` — destructive, so it opens an approve/decline dialog and only proceeds if the human approves
+- `edit_selection` — registered only while the human has a selection, so "make *these* steps a fill" is exact
+
+## Pages
+
+- [Studio](https://github.com/mehmetcanbozkus/duet-studio): the app itself is a single page at `/`; `/?s=<id>` opens a shared song
+- [README](https://github.com/mehmetcanbozkus/duet-studio/blob/main/README.md): what it is, why WebMCP fits, and how it is built
+- [Source](https://github.com/mehmetcanbozkus/duet-studio): full source, MIT licensed
+
+## Optional
+
+- [WebMCP specification](https://webmachinelearning.github.io/webmcp/): the draft this app implements
+- [Chrome WebMCP docs](https://developer.chrome.com/docs/ai/webmcp): how tool registration works in the browser

@@ -3,7 +3,7 @@
 **A browser music studio where you and your AI agent produce a track together.**
 Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) (September 2026).
 
-> Live demo: _coming soon_ · Demo video: _coming soon_
+> Live demo: **<https://duetstudio.mehmetcan.me>** · Demo video: _coming soon_
 
 ![Duet Studio: a kick, hats, bass and snare track; violet cells were written by the agent, the teal range is the human's selection, and the session log on the right lists every tool call](docs/screenshot.png)
 

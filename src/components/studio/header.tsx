@@ -56,7 +56,7 @@ export function Header() {
         </div>
         <input
           aria-label="Song title"
-          className="focus-visible:ring-ring/50 min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-base font-medium outline-none focus-visible:ring-2 sm:max-w-xs"
+          className="focus-visible:ring-ring/50 min-w-16 flex-1 rounded-md bg-transparent px-2 py-1 text-base font-medium outline-none focus-visible:ring-2 sm:max-w-xs"
           value={title}
           onChange={(e) =>
             commit("human", "Renamed the song", (draft) => {
@@ -74,13 +74,14 @@ export function Header() {
             size="sm"
             disabled={sharing}
             onClick={() => void share()}
+            aria-label="Share"
           >
             {sharing ? (
               <Spinner data-icon="inline-start" />
             ) : (
               <Share2 data-icon="inline-start" />
             )}
-            Share
+            <span className="hidden sm:inline">Share</span>
           </Button>
           <Button
             variant="ghost"

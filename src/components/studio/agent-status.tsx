@@ -89,6 +89,12 @@ export function AgentStatus() {
           ? `${toolCount} agent tools ready`
           : "Setting up agent tools…";
 
+  // The header is a single row down to the narrowest phone, so below `sm` the
+  // button keeps only its icon plus the tool count — everything else is left to
+  // the icon and the popover. `buttonLabel` stays as the accessible name.
+  const shortLabel =
+    execution || !supported ? null : `${toolCount}/${expectedCount}`;
+
   const popoverTitle = execution
     ? execution.status === "in_progress"
       ? `${execution.title} is running`
@@ -120,7 +126,13 @@ export function AgentStatus() {
   return (
     <Popover>
       <PopoverTrigger
-        render={<Button variant={ready ? "secondary" : "outline"} size="sm" />}
+        render={
+          <Button
+            variant={ready ? "secondary" : "outline"}
+            size="sm"
+            aria-label={buttonLabel}
+          />
+        }
       >
         {execution?.status === "in_progress" ? (
           <Loader2
@@ -137,7 +149,12 @@ export function AgentStatus() {
             className={ready ? "text-agent" : "text-muted-foreground"}
           />
         )}
-        {buttonLabel}
+        <span className="hidden max-w-52 truncate sm:inline-block">
+          {buttonLabel}
+        </span>
+        {shortLabel && (
+          <span className="tabular-nums sm:hidden">{shortLabel}</span>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 text-sm">
         <PopoverHeader>

@@ -46,14 +46,23 @@ export function ExportMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="outline" size="sm" disabled={!!exporting} />}
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!!exporting}
+            aria-label={exporting ? `Exporting ${exporting}` : "Export"}
+          />
+        }
       >
         {exporting ? (
           <Spinner data-icon="inline-start" />
         ) : (
           <Download data-icon="inline-start" />
         )}
-        {exporting ? `Exporting ${exporting}…` : "Export"}
+        <span className="hidden sm:inline">
+          {exporting ? `Exporting ${exporting}…` : "Export"}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuGroup>
