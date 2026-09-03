@@ -1,0 +1,334 @@
+[
+  {
+    "name": "Read the song",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "What's in the song right now?"
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "get_song",
+        "arguments": {}
+      }
+    ]
+  },
+  {
+    "name": "List instruments",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Which instruments can I use here?"
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "list_instruments",
+        "arguments": {}
+      }
+    ]
+  },
+  {
+    "name": "Scale helper before writing a bassline",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Which notes are in A minor between A1 and A3?"
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "get_scale_notes",
+        "arguments": {
+          "root": "A",
+          "scale": "minor",
+          "low_note": "A1",
+          "high_note": "A3"
+        }
+      }
+    ]
+  },
+  {
+    "name": "Tempo and swing",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Take it to 128 BPM and give it a bit more swing."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "set_tempo",
+        "arguments": {
+          "bpm": 128,
+          "swing": {
+            "$lte": 0.6
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Rename and re-key the song",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Call it Night Drive and put it in F# minor."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "set_song_meta",
+        "arguments": {
+          "title": "Night Drive",
+          "key": "F#",
+          "scale": "minor"
+        }
+      }
+    ]
+  },
+  {
+    "name": "Add a shaker with a 16th pattern",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Add a shaker playing straight 16ths."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "add_track",
+        "arguments": {
+          "instrument": "shaker",
+          "name": "Shaker",
+          "pattern": "x.x.x.x.x.x.x.x."
+        }
+      }
+    ]
+  },
+  {
+    "name": "Euclidean rewrite and humanize",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Make the shaker a euclidean 7 over 16 and humanize it so it breathes."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "set_drum_pattern",
+        "arguments": {
+          "track": "Shaker",
+          "euclid": {
+            "hits": 7,
+            "steps": 16
+          }
+        }
+      },
+      {
+        "functionName": "humanize",
+        "arguments": {
+          "track": "Shaker",
+          "amount": 0.4
+        }
+      }
+    ]
+  },
+  {
+    "name": "Write a lead riff",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Add a lead and write a short hook over the first bar."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "add_track",
+        "arguments": {
+          "instrument": "lead",
+          "name": "Hook"
+        }
+      },
+      {
+        "functionName": "set_notes",
+        "arguments": {
+          "track": "Hook",
+          "mode": "replace",
+          "notes": [
+            {
+              "step": 0,
+              "note": "A3",
+              "length": 2
+            },
+            {
+              "step": 4,
+              "note": "C4",
+              "length": 2
+            },
+            {
+              "step": 8,
+              "note": "E4",
+              "length": 4
+            },
+            {
+              "step": 14,
+              "note": "D4",
+              "length": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Chord progression on a pad",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Put i VI III VII pad chords under it."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "set_chords",
+        "arguments": {
+          "progression": "i VI III VII"
+        }
+      }
+    ]
+  },
+  {
+    "name": "Mixer moves",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Hats are too loud. Add a tom and mute it for now."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "update_track",
+        "arguments": {
+          "track": "Hats",
+          "volume": 0.4
+        }
+      },
+      {
+        "functionName": "add_track",
+        "arguments": {
+          "instrument": "tom",
+          "name": "Tom"
+        }
+      },
+      {
+        "functionName": "update_track",
+        "arguments": {
+          "track": "Tom",
+          "mute": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "Undo then redo",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Drop it to 90 BPM. Actually undo that. No wait, put it back."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "set_tempo",
+        "arguments": {
+          "bpm": 90
+        }
+      },
+      {
+        "functionName": "undo",
+        "arguments": {}
+      },
+      {
+        "functionName": "redo",
+        "arguments": {}
+      }
+    ]
+  },
+  {
+    "name": "Add and drop a track",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Try a clap... nah, take it out again."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "add_track",
+        "arguments": {
+          "instrument": "clap",
+          "name": "Clap"
+        }
+      },
+      {
+        "functionName": "remove_track",
+        "arguments": {
+          "track": "Clap"
+        }
+      }
+    ]
+  },
+  {
+    "name": "Stop playback",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Stop the loop."
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "set_playback",
+        "arguments": {
+          "playing": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "Catch up on human edits",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "I changed a few things while you were away \u2014 what did I do?"
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "get_recent_changes",
+        "arguments": {}
+      },
+      {
+        "functionName": "get_song",
+        "arguments": {},
+        "optional": true
+      }
+    ]
+  }
+]
