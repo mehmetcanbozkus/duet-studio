@@ -12,6 +12,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "smoke": "node scripts/webmcp-smoke.mjs",
+    "drive": "node scripts/webmcp-drive.mjs",
     "smoke:hosts": "node scripts/webmcp-host-probe.mjs minimal && node scripts/webmcp-host-probe.mjs late",
     "smoke:all": "bun run smoke && bun run smoke:hosts"
   },
