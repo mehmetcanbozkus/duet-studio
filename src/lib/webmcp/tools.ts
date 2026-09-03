@@ -828,6 +828,7 @@ export const TOOLS: ToolSpec[] = [
       properties: {},
       additionalProperties: false,
     },
+    annotations: { consequentialHint: true },
     execute: async (_args, { signal }) => {
       // If the agent cancels while the dialog is open, the request counts as declined.
       const ok = await state().requestConfirmation(

@@ -3,13 +3,16 @@
  *
  * The spec shape comes from the official `webmcp-types` package (loaded globally in
  * src/types/webmcp.d.ts): `document.modelContext` is an EventTarget with registerTool/getTools and a
- * `toolchange` event. Real hosts differ. ChatGPT's built-in browser documents registerTool only;
- * Chromium adds executeTool (used by our built-in agent and the smoke test) and, from 153,
- * unregisterTool. So the official pieces are re-exported as-is and `ModelContext` is loosened to what
- * can be relied on: everything beyond registerTool is optional and must be feature-checked.
+ * `toolchange` event. Real hosts differ. ChatGPT's built-in browser documents registerTool only,
+ * while Chromium exposes getTools/executeTool for our built-in agent and smoke test. So the official
+ * pieces are re-exported as-is and `ModelContext` is loosened to what can be relied on: everything
+ * beyond registerTool is optional and must be feature-checked.
  */
 
-export type ToolAnnotations = WebMCP.ToolAnnotations;
+/** Added to the spec after webmcp-types 0.1.6 was published. */
+export type ToolAnnotations = WebMCP.ToolAnnotations & {
+  consequentialHint?: boolean;
+};
 export type ModelContextTool = WebMCP.ModelContextTool;
 export type RegisteredTool = WebMCP.RegisteredTool;
 /** Chromium 151 passes an empty object here, so treat `signal` as optional at runtime. */
@@ -51,16 +54,14 @@ export type ModelContext = Pick<WebMCP.ModelContext, "registerTool"> &
     >
   > & {
     /**
-     * Chromium only, not in the spec types: run a registered tool from page script. Chromium 151
-     * requires `input` as a JSON string and resolves with the JSON-encoded tool result.
+     * Present in the current spec but not yet in webmcp-types: run a registered tool from page
+     * script. The spec accepts an object; Chromium 151 requires a JSON string.
      */
     executeTool?(
       tool: RegisteredTool,
       input?: string | object,
       options?: { signal?: AbortSignal },
     ): Promise<string>;
-    /** Chromium 153+: unregister by name instead of aborting the registration signal. */
-    unregisterTool?(name: string): void;
   };
 
 /**

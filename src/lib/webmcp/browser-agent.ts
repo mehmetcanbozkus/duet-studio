@@ -34,10 +34,9 @@ interface DiscoveredTool {
 }
 
 /**
- * Chromium 151 wants executeTool's input as a JSON string (an object fails with "Failed to parse
- * input arguments") while the spec draft says object. Try the string form first and fall back once
- * if this host is on the spec side; the parse error happens before the tool runs, so nothing is
- * executed twice.
+ * The current spec passes executeTool an object, while Chromium 151 still expects a JSON string.
+ * Prefer the standard form and retry with the legacy form only for Chromium's pre-execution parse
+ * error, so the tool cannot run twice.
  */
 async function executeRegistered(
   mc: NonNullable<ReturnType<typeof getModelContext>>,
@@ -47,14 +46,14 @@ async function executeRegistered(
 ) {
   const args = input ?? {};
   try {
-    return await mc.executeTool!(tool, JSON.stringify(args), { signal });
+    return await mc.executeTool!(tool, args, { signal });
   } catch (error) {
     const parseFailure =
       error instanceof DOMException &&
       error.name === "UnknownError" &&
       /parse/i.test(error.message);
     if (!parseFailure) throw error;
-    return mc.executeTool!(tool, args, { signal });
+    return mc.executeTool!(tool, JSON.stringify(args), { signal });
   }
 }
 

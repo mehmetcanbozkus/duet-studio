@@ -44,6 +44,24 @@ page.on("console", (m) => {
     errors.push(`[${m.type()}] ${m.text().slice(0, 300)}`);
 });
 page.on("pageerror", (e) => errors.push(`[pageerror] ${e.message}`));
+// Capture the raw registration input because older Chromium versions discard annotation fields
+// added to the spec after that browser shipped.
+await page.evaluateOnNewDocument(() => {
+  const registrations = [];
+  Object.defineProperty(window, "__webmcpRegistrations", {
+    value: registrations,
+  });
+  const mc = document.modelContext;
+  if (typeof mc?.registerTool !== "function") return;
+  const registerTool = mc.registerTool.bind(mc);
+  mc.registerTool = (tool, options) => {
+    registrations.push({
+      name: tool.name,
+      annotations: { ...tool.annotations },
+    });
+    return registerTool(tool, options);
+  };
+});
 await page.goto(URL, { waitUntil: "load" });
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: "load" });
@@ -169,6 +187,14 @@ expect(
     getSong?.annotations.untrustedContentHint === true,
   "get_song is readOnly + untrustedContent",
   JSON.stringify(getSong?.annotations),
+);
+const clearSong = await page.evaluate(() =>
+  window.__webmcpRegistrations?.find((tool) => tool.name === "clear_song"),
+);
+expect(
+  clearSong?.annotations.consequentialHint === true,
+  "clear_song is consequential",
+  JSON.stringify(clearSong?.annotations),
 );
 
 let grid = text(await call("get_song"));
