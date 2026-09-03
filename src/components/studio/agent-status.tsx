@@ -107,13 +107,15 @@ export function AgentStatus() {
 
   const popoverDescription = execution?.summary
     ? execution.summary
-    : !supported
-      ? "Open this page in ChatGPT's built-in browser, or in Chrome with chrome://flags/#enable-webmcp-testing turned on, and an agent will be able to play along."
-      : failedCount > 0
-        ? `${failedCount} tool${failedCount === 1 ? "" : "s"} failed to register. The remaining tools are still available.`
-        : ready
-          ? "Your browser's agent can read the song and edit it alongside you."
-          : `Preparing ${expectedCount} tools for your browser's agent.`;
+    : execution?.status === "in_progress" && execution.target
+      ? `Working on ${execution.target.label}.`
+      : !supported
+        ? "Open this page in ChatGPT's built-in browser, or in Chrome with chrome://flags/#enable-webmcp-testing turned on, and an agent will be able to play along."
+        : failedCount > 0
+          ? `${failedCount} tool${failedCount === 1 ? "" : "s"} failed to register. The remaining tools are still available.`
+          : ready
+            ? "Your browser's agent can read the song and edit it alongside you."
+            : `Preparing ${expectedCount} tools for your browser's agent.`;
 
   return (
     <Popover>

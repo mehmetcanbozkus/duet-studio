@@ -93,6 +93,8 @@ export interface ActivityEntry {
   args?: unknown;
   /** Song snapshot before the change; absent for read-only or failed calls. */
   before?: Song;
+  /** Song snapshot after the change, used by expandable activity receipts. */
+  after?: Song;
   error?: string;
 }
 

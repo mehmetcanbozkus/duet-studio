@@ -348,6 +348,15 @@ expect(
   (await hasTool("edit_selection")) === true,
   "edit_selection appears with a selection",
 );
+const contextText = await page.$eval(
+  '[data-agent-context="true"]',
+  (element) => element.textContent,
+);
+expect(
+  /Agent context.*Snare.*Bar 1.*Steps 9–16.*Make a fill/.test(contextText),
+  "selection becomes visible agent context",
+  contextText.replace(/\s+/g, " ").trim(),
+);
 grid = text(await call("get_song"));
 expect(
   /selected steps 8-15 on track "Snare"/.test(grid),
@@ -361,6 +370,20 @@ expect(
   "edit_selection writes only the selected steps",
   r.track?.pattern,
 );
+const receiptDetails = await page.$(
+  'button[aria-label^="Show details for Selection"]',
+);
+expect(receiptDetails !== null, "selection receipt offers details");
+if (receiptDetails) await receiptDetails.click();
+const receiptText = await page.$eval(
+  '[data-activity-details="true"]',
+  (element) => element.textContent,
+);
+expect(
+  /Input[\s\S]*Before[\s\S]*After/.test(receiptText),
+  "receipt expands to input and before/after",
+  receiptText.replace(/\s+/g, " ").trim().slice(0, 160),
+);
 
 // playback via agent: audio unlocked by the autoplay flag in headless
 r = await call("set_playback", { playing: true });
@@ -371,6 +394,16 @@ const pressed = await page.$eval("button[aria-pressed]", (b) =>
 );
 expect(pressed === "true", "play button shows playing");
 await call("set_playback", { playing: false });
+const receiptPlay = await page.$('button[aria-label="Play current song"]');
+expect(receiptPlay !== null, "receipt offers a Play action");
+if (receiptPlay) await receiptPlay.click();
+await new Promise((res) => setTimeout(res, 300));
+const playedFromReceipt = await page.$eval("button[aria-pressed]", (b) =>
+  b.getAttribute("aria-pressed"),
+);
+expect(playedFromReceipt === "true", "receipt Play starts the current song");
+const receiptStop = await page.$('button[aria-label="Stop current song"]');
+if (receiptStop) await receiptStop.click();
 
 // confirmation flow: clear_song opens a dialog; declining leaves the song alone
 const pending = call("clear_song");
@@ -378,6 +411,15 @@ const dialog = await page
   .waitForSelector('[data-slot="dialog-content"]', { timeout: 3000 })
   .catch(() => null);
 expect(dialog !== null, "clear_song opens the confirmation dialog");
+const targetCount = await page.$$eval(
+  '[data-agent-target="true"]',
+  (elements) => elements.length,
+);
+expect(
+  targetCount === 5,
+  "running tool highlights its target tracks",
+  targetCount,
+);
 if (dialog)
   await page.click('[data-slot="dialog-content"] button:nth-of-type(1)');
 r = text(await pending);

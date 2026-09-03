@@ -1,9 +1,19 @@
 "use client";
 
-import { Headphones, MoreHorizontal, Trash2, VolumeX } from "lucide-react";
+import {
+  Bot,
+  Headphones,
+  MoreHorizontal,
+  Sparkles,
+  Trash2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
+import { stepRangeLabel } from "@/lib/studio/format";
 import { INSTRUMENT_BY_ID } from "@/lib/studio/instruments";
 import { getEngine } from "@/lib/studio/playback";
 import { useStudio } from "@/lib/studio/store";
@@ -30,6 +41,10 @@ import {
   type Track,
 } from "@/lib/studio/types";
 import { cn } from "@/lib/utils";
+import {
+  useWebMCPRuntime,
+  type ToolExecutionTarget,
+} from "@/lib/webmcp/runtime";
 
 const CELL_W = 32;
 const GUTTER_W = 192;
@@ -103,9 +118,11 @@ function useIsSelected(trackId: string) {
 
 function TrackHeader({
   track,
+  agentTargeted = false,
   children,
 }: {
   track: Track;
+  agentTargeted?: boolean;
   children?: React.ReactNode;
 }) {
   const commit = useStudio((s) => s.commit);
@@ -124,6 +141,7 @@ function TrackHeader({
       className={cn(
         "flex h-10 shrink-0 flex-col justify-center gap-0.5 border-r px-2",
         selected && "bg-muted/60",
+        agentTargeted && "bg-agent/10 ring-agent/50 ring-1 ring-inset",
       )}
       style={{ width: GUTTER_W }}
       onClick={() => setSelectedTrack(track.id)}
@@ -236,7 +254,13 @@ function TrackHeader({
 
 /* ---------------------------------- drum row ---------------------------------- */
 
-function DrumRow({ track }: { track: DrumTrack }) {
+function DrumRow({
+  track,
+  agentTarget,
+}: {
+  track: DrumTrack;
+  agentTarget?: ToolExecutionTarget;
+}) {
   const commit = useStudio((s) => s.commit);
   const { begin, extend, isSelectGesture } = useSelectionGestures();
   const selected = useIsSelected(track.id);
@@ -251,7 +275,10 @@ function DrumRow({ track }: { track: DrumTrack }) {
 
   return (
     <div className="relative flex">
-      <TrackHeader track={track} />
+      <TrackHeader
+        track={track}
+        agentTargeted={agentTarget?.trackIds.includes(track.id)}
+      />
       <div className="flex">
         {track.steps.map((velocity, step) => {
           const by = track.editedBy[step];
@@ -307,6 +334,7 @@ function DrumRow({ track }: { track: DrumTrack }) {
           );
         })}
       </div>
+      <AgentTargetOverlay target={agentTarget} trackId={track.id} />
       <AgentFlash at={track.lastAgentEditAt} />
     </div>
   );
@@ -314,7 +342,13 @@ function DrumRow({ track }: { track: DrumTrack }) {
 
 /* ---------------------------------- melodic roll ---------------------------------- */
 
-function MelodicRoll({ track }: { track: MelodicTrack }) {
+function MelodicRoll({
+  track,
+  agentTarget,
+}: {
+  track: MelodicTrack;
+  agentTarget?: ToolExecutionTarget;
+}) {
   const commit = useStudio((s) => s.commit);
   const key = useStudio((s) => s.song.key);
   const scale = useStudio((s) => s.song.scale);
@@ -340,7 +374,10 @@ function MelodicRoll({ track }: { track: MelodicTrack }) {
   return (
     <div className="relative">
       <div className="flex">
-        <TrackHeader track={track}>
+        <TrackHeader
+          track={track}
+          agentTargeted={agentTarget?.trackIds.includes(track.id)}
+        >
           <Toggle
             size="sm"
             pressed={fold}
@@ -480,8 +517,34 @@ function MelodicRoll({ track }: { track: MelodicTrack }) {
           </div>
         );
       })}
+      <AgentTargetOverlay target={agentTarget} trackId={track.id} />
       <AgentFlash at={track.lastAgentEditAt} />
     </div>
+  );
+}
+
+function AgentTargetOverlay({
+  target,
+  trackId,
+}: {
+  target?: ToolExecutionTarget;
+  trackId: string;
+}) {
+  if (!target?.trackIds.includes(trackId)) return null;
+  const hasRange = target.from !== undefined && target.to !== undefined;
+  return (
+    <div
+      data-agent-target="true"
+      className="border-agent/60 bg-agent/5 pointer-events-none absolute inset-y-0 border-2"
+      style={
+        hasRange
+          ? {
+              left: GUTTER_W + target.from! * CELL_W,
+              width: (target.to! - target.from! + 1) * CELL_W,
+            }
+          : { left: 0, right: 0 }
+      }
+    />
   );
 }
 
@@ -504,7 +567,33 @@ export function Sequencer() {
   const currentStep = useStudio((s) => s.currentStep);
   const selection = useStudio((s) => s.selection);
   const setSelection = useStudio((s) => s.setSelection);
+  const agentTarget = useWebMCPRuntime(
+    (state) =>
+      (
+        state.executions.find((item) => item.status === "in_progress") ??
+        state.executions[0]
+      )?.target,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectionTrack = selection
+    ? tracks.find((track) => track.id === selection.trackId)
+    : undefined;
+
+  const copySelectionPrompt = async () => {
+    if (!selection || !selectionTrack) return;
+    const prompt =
+      selectionTrack.kind === "drum"
+        ? `Take the selected steps on ${selectionTrack.name} and make them a musical fill that fits the song.`
+        : `Write a variation in the selected steps on ${selectionTrack.name} that fits the song's key.`;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      toast.success("Selection prompt copied", {
+        description: "Paste it to your agent.",
+      });
+    } catch {
+      toast(prompt);
+    }
+  };
 
   return (
     <div className="bg-card overflow-hidden rounded-xl border">
@@ -520,15 +609,6 @@ export function Sequencer() {
               style={{ width: GUTTER_W }}
             >
               {tracks.length} track{tracks.length === 1 ? "" : "s"}
-              {selection && (
-                <button
-                  type="button"
-                  className="text-selection ml-auto underline-offset-2 hover:underline"
-                  onClick={() => setSelection(null)}
-                >
-                  clear selection
-                </button>
-              )}
             </div>
             {Array.from({ length: total }, (_, step) => (
               <div
@@ -559,9 +639,17 @@ export function Sequencer() {
             <div key={trackIds}>
               {tracks.map((track) =>
                 track.kind === "drum" ? (
-                  <DrumRow key={track.id} track={track} />
+                  <DrumRow
+                    key={track.id}
+                    track={track}
+                    agentTarget={agentTarget}
+                  />
                 ) : (
-                  <MelodicRoll key={track.id} track={track} />
+                  <MelodicRoll
+                    key={track.id}
+                    track={track}
+                    agentTarget={agentTarget}
+                  />
                 ),
               )}
             </div>
@@ -576,6 +664,42 @@ export function Sequencer() {
           )}
         </div>
       </div>
+      {selection && selectionTrack && (
+        <div
+          data-agent-context="true"
+          className="bg-selection/10 flex flex-wrap items-center gap-2 border-t px-3 py-2 text-xs"
+        >
+          <Badge variant="secondary">
+            <Bot data-icon="inline-start" />
+            Agent context
+          </Badge>
+          <span className="font-medium">{selectionTrack.name}</span>
+          <span className="text-muted-foreground">
+            {stepRangeLabel(selection.from, selection.to)}
+          </span>
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => void copySelectionPrompt()}
+            >
+              <Sparkles data-icon="inline-start" />
+              {selectionTrack.kind === "drum"
+                ? "Make a fill"
+                : "Write variation"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Clear agent context"
+              title="Clear selection"
+              onClick={() => setSelection(null)}
+            >
+              <X />
+            </Button>
+          </div>
+        </div>
+      )}
       <p className="text-muted-foreground border-t px-3 py-1.5 text-[11px]">
         Click a cell to toggle it, right-click for accent or length. Hold Shift
         and drag across steps to hand your agent an exact range.

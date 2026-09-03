@@ -18,6 +18,18 @@ export function patternString(steps: number[]) {
   return out;
 }
 
+/** Human-facing position for a range of zero-indexed sequencer steps. */
+export function stepRangeLabel(from: number, to: number) {
+  const startBar = Math.floor(from / STEPS_PER_BAR) + 1;
+  const endBar = Math.floor(to / STEPS_PER_BAR) + 1;
+  if (startBar === endBar) {
+    const start = (from % STEPS_PER_BAR) + 1;
+    const end = (to % STEPS_PER_BAR) + 1;
+    return `Bar ${startBar} · ${start === end ? "Step" : "Steps"} ${start === end ? start : `${start}–${end}`}`;
+  }
+  return `Bars ${startBar}–${endBar} · Song steps ${from + 1}–${to + 1}`;
+}
+
 /** Notes as "step:Note(length)" tokens, sorted by step then pitch. */
 export function notesString(notes: Note[], maxChars = 800) {
   const sorted = [...notes].sort(

@@ -90,6 +90,7 @@ export const useStudio = create<StudioState>()(
             tool: meta?.tool,
             args: meta?.args,
             before,
+            after: draft,
           });
         },
 
@@ -107,13 +108,14 @@ export const useStudio = create<StudioState>()(
         loadSong: (song, label, actor = "human") => {
           const before = get().song;
           set({ song, selection: null, selectedTrackId: null });
-          get().logActivity({ actor, label, before });
+          get().logActivity({ actor, label, before, after: song });
         },
 
         revertTo: (song, label) => {
           const before = get().song;
-          set({ song: structuredClone(song), selection: null });
-          get().logActivity({ actor: "human", label, before });
+          const after = structuredClone(song);
+          set({ song: after, selection: null });
+          get().logActivity({ actor: "human", label, before, after });
         },
 
         setSelection: (selection) => set({ selection }),
@@ -177,10 +179,12 @@ export function undo(actor: Actor = "human") {
   if (pastStates.length === 0) return false;
   const before = useStudio.getState().song;
   studioHistory.getState().undo();
+  const after = useStudio.getState().song;
   useStudio.getState().logActivity({
     actor,
     label: "Undo",
     before,
+    after,
     tool: actor === "agent" ? "undo" : undefined,
   });
   return true;
@@ -191,10 +195,12 @@ export function redo(actor: Actor = "human") {
   if (futureStates.length === 0) return false;
   const before = useStudio.getState().song;
   studioHistory.getState().redo();
+  const after = useStudio.getState().song;
   useStudio.getState().logActivity({
     actor,
     label: "Redo",
     before,
+    after,
     tool: actor === "agent" ? "redo" : undefined,
   });
   return true;

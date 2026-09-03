@@ -1,5 +1,10 @@
+import { stepRangeLabel } from "@/lib/studio/format";
+import { findTrack } from "@/lib/studio/song";
+import { useStudio } from "@/lib/studio/store";
+import { STEPS_PER_BAR } from "@/lib/studio/types";
+
 import { runTool, type ToolSpec } from "./tools";
-import { useWebMCPRuntime } from "./runtime";
+import { useWebMCPRuntime, type ToolExecutionTarget } from "./runtime";
 import type { ModelContext, ToolExecuteOptions, ToolResult } from "./types";
 
 function safeStringify(value: unknown) {
@@ -45,6 +50,64 @@ function isCanceled(error: unknown) {
   return error instanceof Error && error.name === "AbortError";
 }
 
+function executionTarget(
+  tool: string,
+  input: unknown,
+): ToolExecutionTarget | undefined {
+  const studio = useStudio.getState();
+  const args =
+    typeof input === "object" && input !== null
+      ? (input as Record<string, unknown>)
+      : {};
+
+  if (tool === "edit_selection" && studio.selection) {
+    const { trackId, from, to } = studio.selection;
+    const track = studio.song.tracks.find((item) => item.id === trackId);
+    if (!track) return undefined;
+    return {
+      trackIds: [trackId],
+      label: `${track.name} · ${stepRangeLabel(from, to)}`,
+      from,
+      to,
+    };
+  }
+
+  let trackIds: string[] = [];
+  let label = "";
+  if (args.track !== undefined) {
+    try {
+      const track = findTrack(studio.song, String(args.track));
+      trackIds = [track.id];
+      label = track.name;
+    } catch {
+      return undefined;
+    }
+  } else if (
+    tool === "clear_song" ||
+    tool === "humanize" ||
+    (tool === "set_song_meta" && args.bars !== undefined)
+  ) {
+    trackIds = studio.song.tracks.map((track) => track.id);
+    label = "All tracks";
+  }
+
+  if (!label) return undefined;
+  if (tool === "set_drum_pattern") {
+    const bar = Number(args.bar);
+    if (Number.isInteger(bar) && bar > 0) {
+      const from = (bar - 1) * STEPS_PER_BAR;
+      const to = from + STEPS_PER_BAR - 1;
+      return {
+        trackIds,
+        label: `${label} · ${stepRangeLabel(from, to)}`,
+        from,
+        to,
+      };
+    }
+  }
+  return { trackIds, label };
+}
+
 /** Run a tool while exposing its page-local lifecycle to the human-facing UI. */
 export async function runTrackedTool(
   spec: ToolSpec,
@@ -52,7 +115,11 @@ export async function runTrackedTool(
   options: ToolExecuteOptions = {},
 ) {
   const runtime = useWebMCPRuntime.getState();
-  const executionId = runtime.startExecution(spec.name, spec.title);
+  const executionId = runtime.startExecution(
+    spec.name,
+    spec.title,
+    executionTarget(spec.name, input),
+  );
   try {
     const value = await runTool(spec, input, options);
     runtime.finishExecution(

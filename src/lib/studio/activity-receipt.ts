@@ -1,6 +1,7 @@
 import { INSTRUMENT_BY_ID, isInstrument } from "./instruments";
+import { notesString, patternString, songHeadline } from "./format";
 import { findTrack } from "./song";
-import type { ActivityEntry } from "./types";
+import type { ActivityEntry, Song, Track } from "./types";
 
 function argsOf(entry: ActivityEntry): Record<string, unknown> | null {
   return typeof entry.args === "object" && entry.args !== null
@@ -32,6 +33,91 @@ function trackName(entry: ActivityEntry, ref: unknown) {
 function percent(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? `${Math.round(number * 100)}%` : undefined;
+}
+
+export interface ActivityDetail {
+  label: string;
+  value: string;
+}
+
+function inputDetails(args: Record<string, unknown>) {
+  const lines = Object.entries(args).map(([key, value]) => {
+    const rendered = typeof value === "string" ? value : JSON.stringify(value);
+    return `${titleCase(key)}: ${rendered}`;
+  });
+  const text = lines.join("\n");
+  return text.length > 500 ? `${text.slice(0, 497)}…` : text;
+}
+
+function trackSnapshot(track: Track) {
+  const info = INSTRUMENT_BY_ID[track.instrument];
+  const flags = [
+    track.mute ? "Muted" : undefined,
+    track.solo ? "Solo" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const header = `${track.name} · ${info.label} · Volume ${percent(track.volume)}${flags ? ` · ${flags}` : ""}`;
+  const content =
+    track.kind === "drum"
+      ? patternString(track.steps)
+      : track.notes.length === 0
+        ? "No notes"
+        : notesString(track.notes, 240);
+  return `${header}\n${content}`;
+}
+
+function changedTrackIds(before: Song, after: Song) {
+  const ids = new Set([
+    ...before.tracks.map((track) => track.id),
+    ...after.tracks.map((track) => track.id),
+  ]);
+  return [...ids].filter((id) => {
+    const previous = before.tracks.find((track) => track.id === id);
+    const next = after.tracks.find((track) => track.id === id);
+    return JSON.stringify(previous) !== JSON.stringify(next);
+  });
+}
+
+function songMetadataChanged(before: Song, after: Song) {
+  return (
+    before.title !== after.title ||
+    before.bpm !== after.bpm ||
+    before.swing !== after.swing ||
+    before.bars !== after.bars ||
+    before.key !== after.key ||
+    before.scale !== after.scale
+  );
+}
+
+/** Compact input and before/after evidence for an expandable session receipt. */
+export function activityDetails(entry: ActivityEntry): ActivityDetail[] {
+  const details: ActivityDetail[] = [];
+  const args = argsOf(entry);
+  if (args && Object.keys(args).length > 0) {
+    details.push({ label: "Input", value: inputDetails(args) });
+  }
+  if (!entry.before || !entry.after) return details;
+
+  const changed = changedTrackIds(entry.before, entry.after);
+  if (!songMetadataChanged(entry.before, entry.after) && changed.length === 1) {
+    const id = changed[0];
+    const before = entry.before.tracks.find((track) => track.id === id);
+    const after = entry.after.tracks.find((track) => track.id === id);
+    details.push({
+      label: "Before",
+      value: before ? trackSnapshot(before) : "Track not present",
+    });
+    details.push({
+      label: "After",
+      value: after ? trackSnapshot(after) : "Track removed",
+    });
+    return details;
+  }
+
+  details.push({ label: "Before", value: songHeadline(entry.before) });
+  details.push({ label: "After", value: songHeadline(entry.after) });
+  return details;
 }
 
 /** Turn raw tool calls into short, human-readable receipts for the shared session log. */

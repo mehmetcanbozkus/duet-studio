@@ -9,12 +9,20 @@ export interface ToolRegistration {
   error?: string;
 }
 
+export interface ToolExecutionTarget {
+  trackIds: string[];
+  label: string;
+  from?: number;
+  to?: number;
+}
+
 export interface ToolExecution {
   id: number;
   tool: string;
   title: string;
   status: ToolExecutionStatus;
   summary?: string;
+  target?: ToolExecutionTarget;
 }
 
 interface WebMCPRuntimeState {
@@ -22,7 +30,11 @@ interface WebMCPRuntimeState {
   executions: ToolExecution[];
   setRegistration: (name: string, registration: ToolRegistration) => void;
   removeRegistration: (name: string) => void;
-  startExecution: (tool: string, title: string) => number;
+  startExecution: (
+    tool: string,
+    title: string,
+    target?: ToolExecutionTarget,
+  ) => number;
   finishExecution: (
     id: number,
     status: Exclude<ToolExecutionStatus, "in_progress">,
@@ -52,7 +64,7 @@ export const useWebMCPRuntime = create<WebMCPRuntimeState>()((set) => ({
       return { registrations };
     }),
 
-  startExecution: (tool, title) => {
+  startExecution: (tool, title, target) => {
     const id = ++nextExecutionId;
     set((state) => {
       const execution: ToolExecution = {
@@ -60,6 +72,7 @@ export const useWebMCPRuntime = create<WebMCPRuntimeState>()((set) => ({
         tool,
         title,
         status: "in_progress",
+        target,
       };
       return {
         executions: [
