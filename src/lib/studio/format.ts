@@ -1,4 +1,3 @@
-import { INSTRUMENT_BY_ID } from "./instruments";
 import { midiToNote, velocityToChar } from "./theory";
 import {
   STEPS_PER_BAR,
@@ -90,11 +89,11 @@ export function describeSong(
   } else {
     lines.push("Tracks:");
     song.tracks.forEach((track, index) => {
-      const info = INSTRUMENT_BY_ID[track.instrument];
       const flags = [track.mute ? "muted" : null, track.solo ? "solo" : null]
         .filter(Boolean)
         .join(", ");
-      const header = `${index + 1}. ${track.name} [${info.label.toLowerCase()}, id=${track.id}, vol ${track.volume.toFixed(2)}${flags ? ", " + flags : ""}]`;
+      // The instrument id, not its label: every tool's `track` argument accepts it verbatim.
+      const header = `${index + 1}. ${track.name} [${track.instrument}, id=${track.id}, vol ${track.volume.toFixed(2)}${flags ? ", " + flags : ""}]`;
       lines.push(header);
       if (track.kind === "drum") {
         lines.push(`   ${patternString(track.steps)}`);
