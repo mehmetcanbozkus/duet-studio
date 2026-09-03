@@ -25,8 +25,9 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 - `bun run dev` starts the development server.
 - `bun run build` creates the static export in `out/`.
 - `bun run check` runs lint, typecheck, and formatting checks.
-- `bun run smoke` runs the headless WebMCP smoke test (needs Chromium at /usr/bin/chromium and a server at http://localhost:3000).
-- `bun run smoke:hosts` checks the page against a minimal `document.modelContext` (registerTool only, injected at load and late) so hosts like ChatGPT's browser cannot crash it.
+- `bun run smoke` runs the headless WebMCP smoke test against a running server; it asserts registration, titles/annotations, validation errors, the dynamic selection tool, playback, the confirmation flow, output sizes (≤1.5K chars) and a clean console, and exits 1 on any failure.
+- `bun run smoke:hosts` checks the page against a minimal `document.modelContext` (registerTool only, injected at load and late) so hosts like ChatGPT's browser cannot crash it. `bun run smoke:all` runs both.
+- Both default to http://localhost:3000/ and Chromium at /usr/bin/chromium; override with `SMOKE_URL=http://localhost:3123/` and `CHROMIUM=/path/to/chrome`. The app itself reads no environment variables.
 
 ## Stack
 

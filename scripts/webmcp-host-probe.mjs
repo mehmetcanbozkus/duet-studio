@@ -1,12 +1,13 @@
 // Simulates hosts that implement less of WebMCP than Chromium:
 //  mode "minimal": document.modelContext is a plain object with registerTool only (no EventTarget, no getTools).
 //  mode "late":    the same object appears 2.5 s after load.
+// Usage: SMOKE_URL=http://localhost:3123/ node scripts/webmcp-host-probe.mjs [minimal|late]
 import puppeteer from "puppeteer-core";
 
-const URL = process.argv[2] ?? "http://localhost:3123/";
-const mode = process.argv[3] ?? "minimal";
+const URL = process.env.SMOKE_URL ?? "http://localhost:3000/";
+const mode = process.argv[2] ?? "minimal";
 const browser = await puppeteer.launch({
-  executablePath: "/usr/bin/chromium",
+  executablePath: process.env.CHROMIUM ?? "/usr/bin/chromium",
   headless: true,
   args: ["--no-sandbox", "--window-size=1440,1000"],
   defaultViewport: { width: 1440, height: 1000 },

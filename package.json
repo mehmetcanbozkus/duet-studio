@@ -11,8 +11,9 @@
     "check": "bun run lint && bun run typecheck && bun run format:check",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "smoke": "node scripts/webmcp-smoke.mjs http://localhost:3000/",
-    "smoke:hosts": "node scripts/webmcp-host-probe.mjs http://localhost:3000/ minimal && node scripts/webmcp-host-probe.mjs http://localhost:3000/ late"
+    "smoke": "node scripts/webmcp-smoke.mjs",
+    "smoke:hosts": "node scripts/webmcp-host-probe.mjs minimal && node scripts/webmcp-host-probe.mjs late",
+    "smoke:all": "bun run smoke && bun run smoke:hosts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.57",
