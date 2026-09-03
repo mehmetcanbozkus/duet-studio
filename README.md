@@ -51,14 +51,15 @@ Read tools carry `readOnlyHint: true`. Every tool whose output can echo the song
 - **Next.js 16** (static export) · **React 19** · **TypeScript** · **Tailwind 4** · **shadcn/ui**
 - **Tone.js** drives the sequencer. It re-reads the song on every 16th note, so edits from either party are heard on the next step.
 - **tonal** for music theory, **zustand + zundo** for state and undo history, **lz-string** for share links.
-- **[`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool)** (Chrome Labs) registers each tool with `document.modelContext.registerTool` and unregisters via `AbortSignal` when the component unmounts or `enabled` flips.
+- **[`webmcp-types`](https://github.com/webmachinelearning/webmcp-types)** (the spec's official typings) types `document.modelContext`. Registration is ~40 lines of our own: each tool calls `registerTool(..., { signal })`, aborts the signal to unregister when the component unmounts or the tool's `when` condition flips, awaits the returned promise so `NotAllowedError` (permissions policy) surfaces as a toast, and forwards the host's `AbortSignal` into the tool so a cancelled `clear_song` closes its confirmation dialog.
 - **Vercel AI SDK** (`ai` + `@ai-sdk/openai`) runs the built-in fallback agent's tool loop with `dynamicTool` definitions built from the discovered WebMCP tools.
 
 Key files:
 
 ```
 src/lib/webmcp/tools.ts              # every WebMCP tool: name, description, JSON schema, execute
-src/components/studio/agent-tools.tsx # mounts one useWebMCP hook per tool
+src/components/studio/agent-tools.tsx # registers one tool per effect, abort = unregister
+src/lib/webmcp/register.ts            # registerTool wrapper + MCP result shaping
 src/lib/studio/store.ts               # zustand store; commit(actor, label, mutate) records provenance
 src/lib/studio/engine.ts              # Tone.js engine
 src/lib/studio/format.ts              # the text grid the agent reads

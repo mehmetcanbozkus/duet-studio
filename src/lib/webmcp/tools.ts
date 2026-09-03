@@ -33,11 +33,13 @@ import {
   type Song,
 } from "@/lib/studio/types";
 
-import type { JsonSchema, ToolAnnotations } from "./types";
+import type { JsonSchema, ToolAnnotations, ToolExecuteOptions } from "./types";
 import { validateInput } from "./validate";
 
 export interface ToolSpec<Args = Record<string, unknown>> {
   name: string;
+  /** Short human-readable label the host may show next to the tool. */
+  title: string;
   description: string;
   inputSchema: JsonSchema;
   annotations?: ToolAnnotations;
@@ -45,7 +47,11 @@ export interface ToolSpec<Args = Record<string, unknown>> {
   when?: (state: StudioState) => boolean;
   /** Short label for the activity feed when the tool is read-only. */
   readLabel?: string;
-  execute: (args: Args) => Promise<unknown> | unknown;
+  /** `options.signal` fires when the host cancels the call (absent on Chromium 151). */
+  execute: (
+    args: Args,
+    options: ToolExecuteOptions,
+  ) => Promise<unknown> | unknown;
 }
 
 const AGENT: Actor = "agent";
@@ -153,6 +159,7 @@ const TRACK_REF = {
 export const TOOLS: ToolSpec[] = [
   {
     name: "get_song",
+    title: "Read the song",
     description:
       "Read the whole song as text: tempo, swing, bars, key/scale, one line per track, transport state and the human's current selection. Call this first, and again after the human says they changed something. Steps are 0-indexed 16ths, 16 per bar. Drum patterns: X accent, x hit, o soft, . rest, bars split by |. Melodic notes: step:Note(length in steps).",
     inputSchema: {
@@ -173,6 +180,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "list_instruments",
+    title: "List instruments",
     description:
       "List the available instruments: id, drum or melodic, character and recommended pitch range. Drums take patterns, melodic instruments take notes.",
     inputSchema: {
@@ -189,6 +197,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "get_scale_notes",
+    title: "Scale notes",
     description:
       "Music theory helper: list the notes of a scale within a pitch range, so melodies and basslines stay in key.",
     inputSchema: {
@@ -238,6 +247,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "set_tempo",
+    title: "Set tempo",
     description:
       "Change tempo (BPM) and/or swing. Swing is 0 (straight) to 0.6 (heavy shuffle), applied to off-beat 16ths.",
     inputSchema: {
@@ -265,6 +275,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "set_playback",
+    title: "Play or stop",
     description:
       "Start or stop playback. The loop plays continuously and picks up edits live. Audio can only start after the human has clicked somewhere on the page at least once.",
     inputSchema: {
@@ -304,6 +315,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "set_song_meta",
+    title: "Song settings",
     description:
       "Set the song title, key, scale and/or length in bars (1, 2 or 4). Growing the song tiles existing material; shrinking drops the extra bars.",
     inputSchema: {
@@ -357,6 +369,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "add_track",
+    title: "Add track",
     description:
       "Add a new track. Drum tracks take an optional pattern string (X accent, x hit, o soft, . rest; 16 chars per bar, short patterns repeat). Melodic tracks take optional notes. Returns the new track id.",
     inputSchema: {
@@ -427,6 +440,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "remove_track",
+    title: "Remove track",
     description: "Remove a track from the song.",
     inputSchema: {
       type: "object",
@@ -447,6 +461,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "update_track",
+    title: "Update track",
     description:
       "Rename a track or change its mixer settings: volume (0-1), mute, solo.",
     inputSchema: {
@@ -486,6 +501,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "set_drum_pattern",
+    title: "Write drum pattern",
     description:
       "Replace a drum track's pattern. Pattern chars: X accent, x hit, o soft/ghost, . rest. 16 steps per bar; a 16-step pattern repeats across all bars unless `bar` targets one bar. Spaces and | are ignored.",
     inputSchema: {
@@ -527,6 +543,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "set_notes",
+    title: "Write notes",
     description:
       "Write notes on a melodic track (bass, lead, pad, pluck, keys). mode 'replace' (default) rewrites the whole track; 'merge' adds to existing notes. Put several notes on the same step for chords.",
     inputSchema: {
@@ -566,6 +583,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "humanize",
+    title: "Humanize",
     description:
       "Add natural velocity variation to one track (or every track). amount 0-1, default 0.3. Great for hats and shakers.",
     inputSchema: {
@@ -609,6 +627,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "undo",
+    title: "Undo",
     description:
       "Undo the last change (by anyone). Call get_song afterwards if you need the details.",
     inputSchema: {
@@ -624,6 +643,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "redo",
+    title: "Redo",
     description: "Redo the last undone change.",
     inputSchema: {
       type: "object",
@@ -638,6 +658,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "clear_song",
+    title: "Clear song",
     description:
       "Remove every track and start over. This asks the human for confirmation in the app and only proceeds if they approve.",
     inputSchema: {
@@ -645,10 +666,12 @@ export const TOOLS: ToolSpec[] = [
       properties: {},
       additionalProperties: false,
     },
-    execute: async () => {
+    execute: async (_args, { signal }) => {
+      // If the agent cancels while the dialog is open, the request counts as declined.
       const ok = await state().requestConfirmation(
         "Clear the whole song?",
         "Your agent wants to remove every track. You can undo afterwards.",
+        signal,
       );
       if (!ok) {
         state().logActivity({
@@ -674,6 +697,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "edit_selection",
+    title: "Edit selection",
     description:
       "Act on exactly the steps the human has selected in the grid (see get_song). Actions: clear; transpose (melodic, semitones); scale_velocity (factor); set_pattern (drum, pattern for the selected steps); set_notes (melodic, steps relative to the selection start).",
     inputSchema: {
@@ -835,11 +859,15 @@ function widenRange(track: MelodicTrack) {
  * against the tool's schema, executes, and records the call in the activity feed. Throws with an
  * actionable message on bad input; callers turn that into an `isError` result.
  */
-export async function runTool(spec: ToolSpec, rawArgs: unknown) {
+export async function runTool(
+  spec: ToolSpec,
+  rawArgs: unknown,
+  options: ToolExecuteOptions = {},
+) {
   let args: Record<string, unknown> = {};
   try {
     args = validateInput(spec.inputSchema, rawArgs);
-    const result = await spec.execute(args);
+    const result = await spec.execute(args, options);
     if (spec.annotations?.readOnlyHint) {
       state().logActivity({
         actor: AGENT,

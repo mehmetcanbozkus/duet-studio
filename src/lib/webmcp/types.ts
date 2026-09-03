@@ -1,9 +1,19 @@
-/** Minimal typings for the WebMCP imperative API (document.modelContext). */
+/**
+ * WebMCP typing for this app.
+ *
+ * The spec shape comes from the official `webmcp-types` package (loaded globally in
+ * src/types/webmcp.d.ts): `document.modelContext` is an EventTarget with registerTool/getTools and a
+ * `toolchange` event. Real hosts differ. ChatGPT's built-in browser documents registerTool only;
+ * Chromium adds executeTool (used by our built-in agent and the smoke test) and, from 153,
+ * unregisterTool. So the official pieces are re-exported as-is and `ModelContext` is loosened to what
+ * can be relied on: everything beyond registerTool is optional and must be feature-checked.
+ */
 
-export interface ToolAnnotations {
-  readOnlyHint?: boolean;
-  untrustedContentHint?: boolean;
-}
+export type ToolAnnotations = WebMCP.ToolAnnotations;
+export type ModelContextTool = WebMCP.ModelContextTool;
+export type RegisteredTool = WebMCP.RegisteredTool;
+/** Chromium 151 passes an empty object here, so treat `signal` as optional at runtime. */
+export type ToolExecuteOptions = Partial<WebMCP.ToolExecuteCallbackOptions>;
 
 /** The JSON Schema subset used by the tool specs and enforced by `validateInput`. */
 export interface SchemaNode {
@@ -27,55 +37,42 @@ export interface JsonSchema extends SchemaNode {
   properties: Record<string, SchemaNode>;
 }
 
-export interface ModelContextTool<Input = Record<string, unknown>> {
-  name: string;
-  title?: string;
-  description: string;
-  inputSchema: JsonSchema;
-  annotations?: ToolAnnotations;
-  execute: (
-    input: Input,
-    options?: { signal?: AbortSignal },
-  ) => Promise<unknown>;
+/** MCP-shaped result that `execute` hands back to the host. */
+export interface ToolResult {
+  content: { type: "text"; text: string }[];
+  isError?: boolean;
 }
 
-export interface RegisteredTool {
-  name: string;
-  description: string;
-  title?: string;
-  inputSchema?: object;
-  origin: string;
-  annotations?: ToolAnnotations;
-}
+export type ModelContext = Pick<WebMCP.ModelContext, "registerTool"> &
+  Partial<
+    Pick<
+      WebMCP.ModelContext,
+      "getTools" | "ontoolchange" | "addEventListener" | "removeEventListener"
+    >
+  > & {
+    /**
+     * Chromium only, not in the spec types: run a registered tool from page script. Chromium 151
+     * requires `input` as a JSON string and resolves with the JSON-encoded tool result.
+     */
+    executeTool?(
+      tool: RegisteredTool,
+      input?: string | object,
+      options?: { signal?: AbortSignal },
+    ): Promise<string>;
+    /** Chromium 153+: unregister by name instead of aborting the registration signal. */
+    unregisterTool?(name: string): void;
+  };
 
 /**
- * Hosts differ in how much of the spec they implement. Chromium's ModelContext is an EventTarget with
- * getTools/executeTool and a `toolchange` event; ChatGPT's built-in browser documents registerTool
- * only. Everything beyond registerTool is therefore optional and must be feature-checked.
+ * The host's model context, or null when there is none. Always `await` registerTool rather than
+ * chaining `.then`: the spec returns a Promise but some hosts return undefined.
  */
-export interface ModelContext {
-  registerTool(
-    tool: ModelContextTool,
-    options?: { signal?: AbortSignal; exposedTo?: string[] },
-  ): Promise<void> | void;
-  unregisterTool?(name: string): void;
-  getTools?(options?: { fromOrigins?: string[] }): Promise<RegisteredTool[]>;
-  executeTool?(
-    tool: RegisteredTool,
-    input?: string | object,
-    options?: { signal?: AbortSignal },
-  ): Promise<string>;
-  addEventListener?: EventTarget["addEventListener"];
-  removeEventListener?: EventTarget["removeEventListener"];
-  ontoolchange?: ((event: Event) => void) | null;
-}
-
 export function getModelContext(): ModelContext | null {
   if (typeof document === "undefined") return null;
   try {
-    const doc = document as Document & { modelContext?: ModelContext };
+    // Early builds exposed the API on navigator; the spec puts it on document.
     const nav = navigator as Navigator & { modelContext?: ModelContext };
-    const mc = doc.modelContext ?? nav.modelContext ?? null;
+    const mc = document.modelContext ?? nav.modelContext ?? null;
     if (!mc || typeof mc.registerTool !== "function") return null;
     return mc;
   } catch {

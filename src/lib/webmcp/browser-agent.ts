@@ -29,7 +29,32 @@ interface DiscoveredTool {
   name: string;
   description: string;
   inputSchema: object;
-  run: (input: unknown) => Promise<unknown>;
+  run: (input: unknown, signal?: AbortSignal) => Promise<unknown>;
+}
+
+/**
+ * Chromium 151 wants executeTool's input as a JSON string (an object fails with "Failed to parse
+ * input arguments") while the spec draft says object. Try the string form first and fall back once
+ * if this host is on the spec side; the parse error happens before the tool runs, so nothing is
+ * executed twice.
+ */
+async function executeRegistered(
+  mc: NonNullable<ReturnType<typeof getModelContext>>,
+  tool: RegisteredTool,
+  input: unknown,
+  signal?: AbortSignal,
+) {
+  const args = input ?? {};
+  try {
+    return await mc.executeTool!(tool, JSON.stringify(args), { signal });
+  } catch (error) {
+    const parseFailure =
+      error instanceof DOMException &&
+      error.name === "UnknownError" &&
+      /parse/i.test(error.message);
+    if (!parseFailure) throw error;
+    return mc.executeTool!(tool, args, { signal });
+  }
 }
 
 /**
@@ -55,8 +80,8 @@ async function discoverTools(): Promise<{
           name: t.name,
           description: t.description,
           inputSchema: t.inputSchema ?? { type: "object", properties: {} },
-          run: async (input) => {
-            const raw = await mc.executeTool!(t, JSON.stringify(input ?? {}));
+          run: async (input, signal) => {
+            const raw = await executeRegistered(mc, t, input, signal);
             try {
               return JSON.parse(raw) as unknown;
             } catch {
@@ -80,9 +105,9 @@ async function discoverTools(): Promise<{
         name: spec.name,
         description: spec.description,
         inputSchema: spec.inputSchema,
-        run: async (input) => {
+        run: async (input, signal) => {
           try {
-            return await runTool(spec, input);
+            return await runTool(spec, input, { signal });
           } catch (error) {
             return {
               isError: true,
@@ -103,6 +128,11 @@ export async function runBrowserAgent(options: {
   signal?: AbortSignal;
 }): Promise<ModelMessage[]> {
   const { tools, via } = await discoverTools();
+  // Chromium 151 does not forward executeTool's signal into the tool's execute callback, so a Stop
+  // while clear_song waits for approval would leave the dialog open. Decline it from here instead.
+  options.signal?.addEventListener("abort", declinePendingConfirmation, {
+    once: true,
+  });
   options.onEvent({
     type: "text",
     text: `Discovered ${tools.length} tools via ${via === "webmcp" ? "document.modelContext" : "direct calls"}.`,
@@ -117,12 +147,13 @@ export async function runBrowserAgent(options: {
         inputSchema: jsonSchema<unknown>(
           t.inputSchema as Parameters<typeof jsonSchema>[0],
         ),
-        execute: async (input) => {
+        execute: async (input, { abortSignal }) => {
           options.onEvent({
             type: "tool",
             text: `${t.name} ${summarize(input)}`,
           });
-          return t.run(input);
+          // Stop in the panel aborts generateText; forward it so an open confirmation closes too.
+          return t.run(input, abortSignal);
         },
       }),
     ]),
@@ -139,6 +170,11 @@ export async function runBrowserAgent(options: {
 
   if (result.text) options.onEvent({ type: "text", text: result.text });
   return [...options.messages, ...result.response.messages];
+}
+
+function declinePendingConfirmation() {
+  const { pendingConfirm, resolveConfirmation } = useStudio.getState();
+  if (pendingConfirm) resolveConfirmation(pendingConfirm.id, false);
 }
 
 function summarize(input: unknown) {

@@ -17,39 +17,20 @@ import {
 } from "@/components/ui/popover";
 import { useStudio } from "@/lib/studio/store";
 import { TOOLS } from "@/lib/webmcp/tools";
-import { getModelContext, onToolChange } from "@/lib/webmcp/types";
-
-// Same window use-webmcp-tool gives a late-injected API (extensions, hosts that attach after load).
-const DETECT_INTERVAL_MS = 500;
-const DETECT_ATTEMPTS = 20;
+import { onToolChange } from "@/lib/webmcp/types";
+import { useModelContext } from "@/lib/webmcp/use-model-context";
 
 export function useWebMCPStatus() {
-  const [supported, setSupported] = useState(() => getModelContext() !== null);
+  const mc = useModelContext();
+  const supported = mc !== null;
   const [browserCount, setBrowserCount] = useState<number | null>(null);
   const enabledCount = useStudio(
     (s) => TOOLS.filter((t) => (t.when ? t.when(s) : true)).length,
   );
 
-  // document.modelContext may show up after the first render. Keep looking for a while.
-  useEffect(() => {
-    if (supported) return;
-    let attempts = 0;
-    const timer = setInterval(() => {
-      if (getModelContext() !== null) {
-        clearInterval(timer);
-        setSupported(true);
-      } else if (++attempts >= DETECT_ATTEMPTS) {
-        clearInterval(timer);
-      }
-    }, DETECT_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [supported]);
-
   // Ask the browser how many tools it sees. Chromium fires `toolchange`; hosts without events or
   // without getTools (ChatGPT's built-in browser) fall back to our own enabled-tool count.
   useEffect(() => {
-    if (!supported) return;
-    const mc = getModelContext();
     if (!mc || typeof mc.getTools !== "function") return;
     const getTools = mc.getTools.bind(mc);
     let cancelled = false;
@@ -73,7 +54,7 @@ export function useWebMCPStatus() {
       clearTimeout(timer);
       unsubscribe();
     };
-  }, [supported, enabledCount]);
+  }, [mc, enabledCount]);
 
   return { supported, toolCount: browserCount ?? enabledCount };
 }

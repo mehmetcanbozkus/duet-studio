@@ -33,7 +33,7 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 - Next.js 16 App Router (static export), React 19, strict TypeScript, React Compiler.
 - Tailwind CSS 4, shadcn/ui (Base UI primitives), Lucide icons.
 - Tone.js for audio, tonal for music theory, zustand + zundo for state and undo history, lz-string for share links.
-- `use-webmcp-tool` (Chrome Labs) registers tools with `document.modelContext`.
+- `webmcp-types` (official spec typings, devDependency) provides the global `WebMCP` namespace and `document.modelContext`; registration is our own code in `src/lib/webmcp/register.ts`.
 
 ## Architecture
 
@@ -41,8 +41,8 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 - `src/lib/studio/store.ts` — zustand store; every change goes through `commit(actor, label, mutate)` which records who did it.
 - `src/lib/studio/engine.ts` — Tone.js sequencer that re-reads the song on every 16th note, so edits are heard live.
 - `src/lib/webmcp/tools.ts` — the WebMCP tool specs (name, description, JSON schema, execute). `when` makes a tool conditional (e.g. `edit_selection` only exists while the human has a selection).
-- `src/components/studio/agent-tools.tsx` — mounts one `useWebMCP` hook per tool spec.
-- `src/lib/webmcp/types.ts` — `ModelContext` typing where everything beyond `registerTool` is optional; feature-check before calling `getTools`, `executeTool` or `addEventListener` (ChatGPT's browser has none of them). WebMCP-facing widgets render inside `Safe` (react-error-boundary).
+- `src/components/studio/agent-tools.tsx` — one effect per tool spec: `registerSpec()` with an `AbortController` (abort = unregister), registration errors surface as a toast. `src/lib/webmcp/use-model-context.ts` is the shared late-detection hook for `document.modelContext`.
+- `src/lib/webmcp/types.ts` — re-exports the official `WebMCP.*` types and derives a `ModelContext` where everything beyond `registerTool` is optional; feature-check before calling `getTools`, `executeTool` or `addEventListener` (ChatGPT's browser has none of them). WebMCP-facing widgets render inside `Safe` (react-error-boundary).
 - `src/components/studio/*` — UI. The studio is loaded with `next/dynamic` and `ssr: false` because it touches Web Audio, localStorage and `document.modelContext`.
 
 ## Code Style

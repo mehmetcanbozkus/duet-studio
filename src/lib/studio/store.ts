@@ -40,7 +40,12 @@ export interface StudioState {
   setPlaying: (playing: boolean) => void;
   setCurrentStep: (step: number) => void;
   setAudioReady: (ready: boolean) => void;
-  requestConfirmation: (title: string, description: string) => Promise<boolean>;
+  /** Resolves false when the human declines, 60 s pass, or `signal` aborts. */
+  requestConfirmation: (
+    title: string,
+    description: string,
+    signal?: AbortSignal,
+  ) => Promise<boolean>;
   resolveConfirmation: (id: string, ok: boolean) => void;
 }
 
@@ -119,12 +124,18 @@ export const useStudio = create<StudioState>()(
         setCurrentStep: (step) => set({ currentStep: step }),
         setAudioReady: (ready) => set({ audioReady: ready }),
 
-        requestConfirmation: (title, description) => {
+        requestConfirmation: (title, description, signal) => {
           const id = nanoid(6);
+          if (signal?.aborted) return Promise.resolve(false);
           return new Promise<boolean>((resolve) => {
             confirmResolvers.set(id, resolve);
             set({ pendingConfirm: { id, title, description } });
             setTimeout(() => get().resolveConfirmation(id, false), 60_000);
+            signal?.addEventListener(
+              "abort",
+              () => get().resolveConfirmation(id, false),
+              { once: true },
+            );
           });
         },
 
