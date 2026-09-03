@@ -48,7 +48,7 @@ Read tools carry `readOnlyHint: true`. Every tool whose output can echo the song
 
 ## How it is built
 
-- **Next.js 16** (static export) · **React 19** · **TypeScript** · **Tailwind 4** · **shadcn/ui**
+- **Next.js 16** · **React 19** · **TypeScript** · **Tailwind 4** · **shadcn/ui**
 - **Tone.js** drives the sequencer. It re-reads the song on every 16th note, so edits from either party are heard on the next step.
 - **tonal** for music theory, **zustand + zundo** for state and undo history, **lz-string** for share links.
 - **[`webmcp-types`](https://github.com/webmachinelearning/webmcp-types)** (the spec's official typings) types `document.modelContext`. Registration is ~40 lines of our own: each tool calls `registerTool(..., { signal })`, aborts the signal to unregister when the component unmounts or the tool's `when` condition flips, awaits the returned promise so `NotAllowedError` (permissions policy) surfaces as a toast, and forwards the host's `AbortSignal` into the tool so a cancelled `clear_song` closes its confirmation dialog.
@@ -67,12 +67,39 @@ src/lib/webmcp/browser-agent.ts       # fallback agent: getTools() -> dynamicToo
 scripts/webmcp-smoke.mjs              # headless test that drives the real document.modelContext API
 ```
 
+## Built to the WebMCP guidance
+
+Before submission the project was audited line by line against the [WebMCP spec](https://webmachinelearning.github.io/webmcp/) and Chrome's [WebMCP](https://developer.chrome.com/docs/ai/webmcp), [secure tools](https://developer.chrome.com/docs/ai/webmcp/secure-tools), [best practices](https://developer.chrome.com/docs/ai/webmcp/best-practices) and [DevTools](https://developer.chrome.com/docs/devtools/application/webmcp) guides, and changed wherever it fell short. The measurable parts are asserted by `bun run smoke` on every run.
+
+| Guidance                                                                                | Source         | What Duet Studio does                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registerTool(tool, { signal })`, abort to unregister, handle the returned promise      | spec           | Own registration layer on the official `webmcp-types`; the promise is awaited, so `AbortError` from React remounts is ignored and `NotAllowedError` (permissions policy) surfaces as a toast instead of a false "registered"                          |
+| Tools carry `title`, `description`, `inputSchema`, `annotations`                        | spec           | All 16 tools have a title; `readOnlyHint` on reads, `untrustedContentHint` on every tool that can echo human-typed text (song title, track names, anything arriving through a share link)                                                             |
+| `execute` receives the host's `AbortSignal`                                             | spec           | Forwarded into the tool; a cancelled `clear_song` declines its own confirmation dialog                                                                                                                                                                |
+| Register a tool only while it is useful                                                 | best practices | `edit_selection` exists only while the human has a selection and disappears with it                                                                                                                                                                   |
+| Validate strictly in code, keep the schema advisory                                     | best practices | Every call passes `validateInput`: `bpm: "banana"` fails with `bpm must be a number, got "banana".` instead of being clamped to null. Share links and songs restored from localStorage go through the same zod parser and are repaired field by field |
+| Fail with actionable errors, never a silent no-op                                       | best practices | Empty `update_track`, a drum track given `notes`, an unknown track: each throws a message that says what to do instead                                                                                                                                |
+| Do not make the model do the arithmetic                                                 | best practices | `get_scale_notes`, pattern strings, `humanize`, selection-relative steps                                                                                                                                                                              |
+| Budgets: name ≤ 30, description ≤ 500, parameter description ≤ 150, output ≤ 1.5K chars | secure tools   | Longest description 349 chars; `get_song` on the default song is 361 chars and `list_instruments` 744; write tools answer with one line plus the track they touched instead of re-describing the song                                                 |
+| Treat user-generated content as untrusted, gate destructive actions                     | secure tools   | `untrustedContentHint` as above; `clear_song` proceeds only after the human approves in the UI                                                                                                                                                        |
+| Inspect tools and invocations in DevTools                                               | DevTools       | Application → WebMCP shows titles, schemas, annotations and every call (see Test with an agent)                                                                                                                                                       |
+
+**Where the shipping browser differs from the spec.** These were measured in Chromium 151 with the WebMCP feature on, and the code follows the browser today without blocking the spec tomorrow:
+
+- `executeTool` needs its input as a JSON string; an object fails with "Failed to parse input arguments". The built-in agent sends a string and falls back to an object once if a host rejects it.
+- `execute` receives an empty options object, no `signal`. Aborting `executeTool` rejects the caller but never reaches the tool, so the built-in agent declines any pending confirmation itself when you press Stop.
+- `registerTool` returns a promise that rejects with `InvalidStateError` on a duplicate name and `AbortError` when the signal fires before registration settles. Awaiting it took the dev console from 15 unhandled rejections to 0.
+- `getTools()` reports `title: ""` for tools registered without one, and the browser does not validate `inputSchema`. Hence titles everywhere and validation in code.
+- ChatGPT's built-in browser documents `registerTool` only: no `EventTarget`, no `getTools`, no `executeTool`. Everything beyond `registerTool` is feature-checked, and `bun run smoke:hosts` simulates that host at load and injected late.
+
+Not done yet: an Origin Trial token so Chrome 149+ stable works without the flag, and a scripted eval set along the lines of Chrome's [evals guide](https://developer.chrome.com/docs/ai/webmcp/evals).
+
 ## Run it
 
 ```bash
 bun install
 bun run dev        # http://localhost:3000
-bun run build      # static export in out/
+bun run build      # production build
 ```
 
 ### Test with an agent
@@ -86,17 +113,6 @@ bun run build      # static export in out/
 - **Built-in agent (no special browser needed)**: the sidebar has a fallback agent. Paste your own OpenAI API key and chat. The key is sent from the page straight to api.openai.com and kept in the tab's sessionStorage; it only goes to localStorage if you switch on "Remember on this device". Any script on the page could read it, so use a key with a spending limit and revoke it afterwards. It discovers the very same tools through `document.modelContext.getTools()` and invokes them with `executeTool()`, so it exercises the WebMCP path an external agent would; in a browser without WebMCP it calls the tool specs directly.
 
 Without WebMCP the studio is still a complete, fully usable sequencer.
-
-### Deploy
-
-The app is a static export with no server or environment variables. Any static host works:
-
-| Host                 | Build command                | Output directory      |
-| -------------------- | ---------------------------- | --------------------- |
-| Vercel               | auto-detected (`next build`) | auto-detected (`out`) |
-| Cloudflare Pages     | `bun run build`              | `out`                 |
-| Netlify              | `bun run build`              | `out`                 |
-| Render (static site) | `bun run build`              | `out`                 |
 
 ## License
 

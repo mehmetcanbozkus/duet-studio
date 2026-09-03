@@ -23,7 +23,7 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 
 - Package manager: Bun.
 - `bun run dev` starts the development server.
-- `bun run build` creates the static export in `out/`.
+- `bun run build` creates the production build (no `output: "export"`; deployed on Vercel by the maintainer).
 - `bun run check` runs lint, typecheck, and formatting checks.
 - `bun run smoke` runs the headless WebMCP smoke test against a running server; it asserts registration, titles/annotations, validation errors, the dynamic selection tool, playback, the confirmation flow, output sizes (≤1.5K chars) and a clean console, and exits 1 on any failure.
 - `bun run smoke:hosts` checks the page against a minimal `document.modelContext` (registerTool only, injected at load and late) so hosts like ChatGPT's browser cannot crash it. `bun run smoke:all` runs both.
@@ -31,7 +31,7 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 
 ## Stack
 
-- Next.js 16 App Router (static export), React 19, strict TypeScript, React Compiler.
+- Next.js 16 App Router, React 19, strict TypeScript, React Compiler. The app has no server code and reads no environment variables.
 - Tailwind CSS 4, shadcn/ui (Base UI primitives), Lucide icons.
 - Tone.js for audio, tonal for music theory, zustand + zundo for state and undo history, lz-string for share links.
 - `webmcp-types` (official spec typings, devDependency) provides the global `WebMCP` namespace and `document.modelContext`; registration is our own code in `src/lib/webmcp/register.ts`.
