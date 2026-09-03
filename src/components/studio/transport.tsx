@@ -79,11 +79,11 @@ export function Transport() {
       <Field orientation="horizontal" className="w-auto">
         <FieldTitle>Swing</FieldTitle>
         <Slider
-          className="w-24"
+          className="w-24! shrink-0"
           min={0}
           max={0.6}
           step={0.02}
-          value={swing}
+          value={[swing]}
           aria-label="Swing"
           format={percentFormat}
           onValueChange={(value) => {
