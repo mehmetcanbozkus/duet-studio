@@ -267,6 +267,63 @@ function createVoice(instrument: Instrument, kind: Track["kind"]): Voice {
     : melodicVoice(instrument as MelodicInstrument, channel);
 }
 
+/** Render one complete loop with the same voices and swing behavior used by live playback. */
+export async function renderSongOffline(song: Song): Promise<AudioBuffer> {
+  const total = totalSteps(song);
+  const secondsPerStep = 60 / song.bpm / 4;
+  const lastNoteEnd = song.tracks.reduce((latest, track) => {
+    if (track.kind === "drum") return latest;
+    return track.notes.reduce(
+      (trackLatest, note) => Math.max(trackLatest, note.step + note.length),
+      latest,
+    );
+  }, total);
+  const duration = Math.max(total, lastNoteEnd) * secondsPerStep + 1.2;
+  const rendered = await Tone.Offline(
+    ({ transport }) => {
+      transport.bpm.value = song.bpm;
+      transport.swing = song.swing;
+      transport.swingSubdivision = "16n";
+      const voices = song.tracks.map((track) => {
+        const voice = createVoice(track.instrument, track.kind);
+        voice.channel.volume.value = Tone.gainToDb(track.volume);
+        voice.channel.mute = track.mute;
+        voice.channel.solo = track.solo;
+        return { track, voice };
+      });
+      let step = 0;
+      transport.scheduleRepeat((time) => {
+        if (step >= total) return;
+        for (const { track, voice } of voices) {
+          if (track.kind === "drum") {
+            const velocity = track.steps[step] ?? 0;
+            if (velocity > 0) voice.trigger(time, velocity);
+          } else {
+            for (const note of track.notes) {
+              if (note.step === step) {
+                voice.trigger(
+                  time,
+                  note.velocity,
+                  note.pitch,
+                  secondsPerStep * note.length * 0.9,
+                );
+              }
+            }
+          }
+        }
+        step += 1;
+      }, "16n");
+      transport.start(0);
+    },
+    duration,
+    2,
+    44_100,
+  );
+  const buffer = rendered.get();
+  if (!buffer) throw new Error("The browser did not return rendered audio");
+  return buffer;
+}
+
 export interface EngineHooks {
   getSong: () => Song;
   onStep: (step: number) => void;

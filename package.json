@@ -18,8 +18,10 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.57",
     "@base-ui/react": "^1.7.0",
+    "@tonejs/midi": "^2.0.28",
     "@vercel/analytics": "^2.0.1",
     "ai": "^7.0.91",
+    "audiobuffer-to-wav": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.39.0",
@@ -41,6 +43,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/audiobuffer-to-wav": "^1.0.4",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",

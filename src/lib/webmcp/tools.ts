@@ -18,11 +18,13 @@ import {
 import { redo, undo, useStudio, type StudioState } from "@/lib/studio/store";
 import {
   SCALE_NAMES,
+  euclideanPattern,
   midiToNote,
   normalizePitchClass,
   noteToMidi,
   isScaleName,
   parsePattern,
+  romanChordVoicings,
   scaleNotesInRange,
 } from "@/lib/studio/theory";
 import {
@@ -161,7 +163,7 @@ export const TOOLS: ToolSpec[] = [
     name: "get_song",
     title: "Read the song",
     description:
-      "Read the whole song as text: tempo, swing, bars, key/scale, one line per track, transport state and the human's current selection. Call this first, and again after the human says they changed something. Steps are 0-indexed 16ths, 16 per bar. Drum patterns: X accent, x hit, o soft, . rest, bars split by |. Melodic notes: step:Note(length in steps).",
+      "Read the whole song as text: tempo, swing, bars, key/scale, tracks, transport and human selection. Call this first; use get_recent_changes for later human edits, then read the song again when you need full detail. Steps are 0-indexed 16ths, 16 per bar. Drums: X accent, x hit, o soft, . rest. Melodic notes: step:Note(length).",
     inputSchema: {
       type: "object",
       properties: {},
@@ -176,6 +178,47 @@ export const TOOLS: ToolSpec[] = [
         step: s.currentStep,
         selection: s.selection,
       });
+    },
+  },
+  {
+    name: "get_recent_changes",
+    title: "Read human changes",
+    description:
+      "Read what the human changed since the agent last observed the song with get_song or this tool. Returns up to 10 session-log entries in chronological order; call get_song afterwards when you need the full current notes or patterns.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, ...ECHOES_SONG_TEXT },
+    readLabel: "Checked human changes",
+    execute: () => {
+      const activity = state().activity;
+      const lastObservation = activity.findIndex(
+        (entry) =>
+          entry.actor === AGENT &&
+          (entry.tool === "get_song" || entry.tool === "get_recent_changes"),
+      );
+      const sinceObservation =
+        lastObservation === -1 ? activity : activity.slice(0, lastObservation);
+      const humanChanges = sinceObservation.filter(
+        (entry) => entry.actor === "human" && entry.before !== undefined,
+      );
+      const changes = humanChanges
+        .slice(0, 10)
+        .reverse()
+        .map((entry) => ({
+          at: new Date(entry.at).toISOString(),
+          change: entry.label,
+        }));
+      return {
+        message:
+          changes.length === 0
+            ? "The human has not changed the song since the last observation."
+            : `The human made ${humanChanges.length} change(s) since the last observation.`,
+        changes,
+        omitted: Math.max(0, humanChanges.length - changes.length),
+      };
     },
   },
   {
@@ -503,7 +546,7 @@ export const TOOLS: ToolSpec[] = [
     name: "set_drum_pattern",
     title: "Write drum pattern",
     description:
-      "Replace a drum track's pattern. Pattern chars: X accent, x hit, o soft/ghost, . rest. 16 steps per bar; a 16-step pattern repeats across all bars unless `bar` targets one bar. Spaces and | are ignored.",
+      "Replace a drum track using either a pattern string (X accent, x hit, o soft, . rest) or euclid { hits, steps, rotate? }. Short patterns repeat across the song; `bar` targets one 16-step bar.",
     inputSchema: {
       type: "object",
       properties: {
@@ -513,6 +556,18 @@ export const TOOLS: ToolSpec[] = [
           maxLength: 96,
           description: 'e.g. "X...x...X...x..." or "x.x.x.x.x.x.x.x."',
         },
+        euclid: {
+          type: "object",
+          properties: {
+            hits: { type: "integer", minimum: 0, maximum: 64 },
+            steps: { type: "integer", minimum: 1, maximum: 64 },
+            rotate: { type: "integer", minimum: -64, maximum: 64 },
+          },
+          required: ["hits", "steps"],
+          additionalProperties: false,
+          description:
+            "Evenly distribute hits across steps; rotate moves the pattern right",
+        },
         bar: {
           type: "integer",
           minimum: 1,
@@ -520,11 +575,27 @@ export const TOOLS: ToolSpec[] = [
           description: "Only write this bar (1-based)",
         },
       },
-      required: ["track", "pattern"],
+      required: ["track"],
       additionalProperties: false,
     },
     annotations: ECHOES_SONG_TEXT,
     execute: (args) => {
+      const hasPattern = typeof args.pattern === "string";
+      const hasEuclid = args.euclid !== undefined;
+      if (hasPattern === hasEuclid)
+        throw new Error("Provide exactly one of pattern or euclid");
+      let pattern = hasPattern ? String(args.pattern) : "";
+      let euclidMessage = "";
+      if (hasEuclid) {
+        const euclid = args.euclid as Record<string, unknown>;
+        const hits = Number(euclid.hits);
+        const steps = Number(euclid.steps);
+        const rotate = euclid.rotate === undefined ? 0 : Number(euclid.rotate);
+        pattern = euclideanPattern(steps, hits, rotate)
+          .map((hit) => (hit ? "x" : "."))
+          .join("");
+        euclidMessage = ` Euclidean ${hits}/${steps}, rotated ${rotate}.`;
+      }
       let id = "";
       commit("Wrote a drum pattern", "set_drum_pattern", args, (draft) => {
         const track = findTrack(draft, String(args.track));
@@ -532,20 +603,20 @@ export const TOOLS: ToolSpec[] = [
           throw new Error(`"${track.name}" is melodic. Use set_notes instead.`);
         applyPattern(
           track,
-          String(args.pattern),
+          pattern,
           AGENT,
           args.bar === undefined ? undefined : Number(args.bar),
         );
         id = track.id;
       });
-      return changed("Pattern written.", id);
+      return changed(`Pattern written.${euclidMessage}`, id);
     },
   },
   {
     name: "set_notes",
     title: "Write notes",
     description:
-      "Write notes on a melodic track (bass, lead, pad, pluck, keys). mode 'replace' (default) rewrites the whole track; 'merge' adds to existing notes. Put several notes on the same step for chords.",
+      "Write exact notes on a melodic track (bass, lead, pad, pluck, keys). mode 'replace' (default) rewrites the whole track; 'merge' adds notes. Stack notes at one step for custom chords; set_chords generates Roman progressions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -579,6 +650,97 @@ export const TOOLS: ToolSpec[] = [
         `${args.mode === "merge" ? "Merged" : "Wrote"} ${(args.notes as NoteInput[]).length} note(s).`,
         id,
       );
+    },
+  },
+  {
+    name: "set_chords",
+    title: "Write chord progression",
+    description:
+      "Write a scale-relative Roman-numeral progression such as `i VI III VII` across the whole song. Uses close voice leading on a pad or keys track. Omit track to reuse the first pad/keys track or create a Chords pad.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        progression: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description:
+            'Space-separated Roman chords relative to the song scale, e.g. "i VI III VII"',
+        },
+        track: TRACK_REF,
+        velocity: {
+          type: "number",
+          minimum: 0.05,
+          maximum: 1,
+          description: "Chord velocity, default 0.7",
+        },
+      },
+      required: ["progression"],
+      additionalProperties: false,
+    },
+    annotations: ECHOES_SONG_TEXT,
+    execute: (args) => {
+      let id = "";
+      let symbols: string[] = [];
+      commit("Wrote a chord progression", "set_chords", args, (draft) => {
+        let track: MelodicTrack | undefined;
+        if (args.track !== undefined) {
+          const found = findTrack(draft, String(args.track));
+          if (found.kind !== "melodic")
+            throw new Error(`"${found.name}" is a drum track.`);
+          track = found;
+        } else {
+          track = draft.tracks.find(
+            (candidate): candidate is MelodicTrack =>
+              candidate.kind === "melodic" &&
+              (candidate.instrument === "pad" ||
+                candidate.instrument === "keys"),
+          );
+          if (!track) {
+            if (draft.tracks.length >= 12)
+              throw new Error("Maximum of 12 tracks reached");
+            track = createTrack("pad", AGENT, draft, "Chords") as MelodicTrack;
+            draft.tracks.push(track);
+          }
+        }
+        if (track.instrument !== "pad" && track.instrument !== "keys")
+          throw new Error(
+            `"${track.name}" uses ${track.instrument}; set_chords needs a pad or keys track.`,
+          );
+
+        const result = romanChordVoicings(
+          String(args.progression),
+          draft.key,
+          draft.scale,
+          track.lowNote,
+          track.highNote,
+        );
+        const total = totalSteps(draft);
+        if (result.chords.length > total)
+          throw new Error(
+            `This ${total}-step song fits at most ${total} chords`,
+          );
+        const velocity =
+          args.velocity === undefined
+            ? 0.7
+            : clamp(Number(args.velocity), 0.05, 1);
+        track.notes = result.voicings.flatMap((voicing, index) => {
+          const step = Math.floor((index * total) / result.voicings.length);
+          const end = Math.floor(
+            ((index + 1) * total) / result.voicings.length,
+          );
+          return voicing.map((note) => ({
+            step,
+            pitch: noteToMidi(note),
+            length: Math.max(1, end - step),
+            velocity,
+            by: AGENT,
+          }));
+        });
+        symbols = result.chords;
+        id = track.id;
+      });
+      return changed(`Wrote ${symbols.join(" – ")}.`, id);
     },
   },
   {

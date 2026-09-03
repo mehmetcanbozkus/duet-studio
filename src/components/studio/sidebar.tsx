@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const PROMPTS = [
   "Look at my song and add a hi-hat groove that fits the kick.",
   "Write a two-bar bassline in A minor that locks with the kick.",
-  "Add a pad playing Am, F, C, G chords, one per beat group.",
+  "Add a sad i VI III VII chord progression in the song's key.",
   "Humanize the hats and make the second bar busier.",
   "Take the steps I selected and make them a snare fill.",
   "Bring the tempo to 96 and add some swing.",

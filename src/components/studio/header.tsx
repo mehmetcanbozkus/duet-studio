@@ -4,6 +4,7 @@ import { Code2, Music2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AgentStatus } from "./agent-status";
+import { ExportMenu } from "./export-menu";
 import { Safe } from "./safe";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ export function Header() {
           <Safe name="Agent status">
             <AgentStatus />
           </Safe>
+          <ExportMenu />
           <Button variant="outline" size="sm" onClick={share}>
             <Share2 data-icon="inline-start" />
             Share

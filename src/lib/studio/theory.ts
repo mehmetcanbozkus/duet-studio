@@ -1,4 +1,13 @@
-import { Note, Scale } from "tonal";
+import {
+  Chord,
+  Interval,
+  Note,
+  Progression,
+  RhythmPattern,
+  RomanNumeral,
+  Scale,
+  Voicing,
+} from "tonal";
 
 import type { ScaleName } from "./types";
 
@@ -30,6 +39,9 @@ const TONAL_SCALE: Record<ScaleName, string> = {
   pentatonic_minor: "minor pentatonic",
   blues: "minor blues",
 };
+
+const MAJOR_DEGREE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+const ROMAN_TOKEN = /^([#b]*)([ivIV]+)(.*)$/;
 
 export const SCALE_NAMES = Object.keys(TONAL_SCALE) as ScaleName[];
 
@@ -96,6 +108,95 @@ export function scaleNotesInRange(
     if (classes.includes(midi % 12)) out.push(midi);
   }
   return out;
+}
+
+/** Generate an evenly distributed Euclidean pattern with an optional right rotation. */
+export function euclideanPattern(steps: number, hits: number, rotate = 0) {
+  if (!Number.isInteger(steps) || steps < 1 || steps > 64)
+    throw new Error("euclid.steps must be an integer between 1 and 64");
+  if (!Number.isInteger(hits) || hits < 0 || hits > steps)
+    throw new Error(`euclid.hits must be an integer between 0 and ${steps}`);
+  if (!Number.isInteger(rotate) || rotate < -64 || rotate > 64)
+    throw new Error("euclid.rotate must be an integer between -64 and 64");
+  return RhythmPattern.rotate(RhythmPattern.euclid(steps, hits), rotate);
+}
+
+/**
+ * Turn conventional, scale-relative Roman numerals into Tonal chord symbols and close voicings.
+ * Tonal's Progression parser is major-relative, so modal scale alterations are folded into the
+ * Roman tokens before conversion (A minor `i VI III VII` -> `Im bVI bIII bVII`).
+ */
+export function romanChordVoicings(
+  progression: string,
+  root: string,
+  scaleName: ScaleName,
+  low: number,
+  high: number,
+) {
+  const normalizedRoot = normalizePitchClass(root);
+  if (!normalizedRoot) throw new Error(`Unknown key "${root}"`);
+  const tokens = progression
+    .trim()
+    .split(/[\s,|]+/)
+    .filter(Boolean);
+  if (tokens.length === 0) throw new Error("progression is empty");
+  if (tokens.length > 16)
+    throw new Error("progression must contain at most 16 chords");
+
+  const scale = Scale.get(`${normalizedRoot} ${TONAL_SCALE[scaleName]}`);
+  if (scale.empty || scale.intervals.length !== 7) {
+    throw new Error(
+      `Roman chord progressions need a seven-note scale; "${scaleName}" has ${scale.intervals.length}.`,
+    );
+  }
+
+  const tonalTokens = tokens.map((token) => {
+    const match = ROMAN_TOKEN.exec(token);
+    if (!match) throw new Error(`Invalid Roman chord "${token}"`);
+    const [, writtenAccidentals, roman, writtenSuffix] = match;
+    const parsed = RomanNumeral.get(roman);
+    if (parsed.empty || parsed.step < 0 || parsed.step > 6)
+      throw new Error(`Invalid Roman chord "${token}"`);
+
+    const scaleSemitones = Interval.semitones(scale.intervals[parsed.step]);
+    if (scaleSemitones === undefined)
+      throw new Error(`Could not resolve scale degree in "${token}"`);
+    const writtenOffset = [...writtenAccidentals].reduce(
+      (sum, accidental) => sum + (accidental === "#" ? 1 : -1),
+      0,
+    );
+    const alteration =
+      scaleSemitones - MAJOR_DEGREE_SEMITONES[parsed.step] + writtenOffset;
+    const accidentals =
+      alteration > 0 ? "#".repeat(alteration) : "b".repeat(-alteration);
+
+    const lowerCase = roman === roman.toLowerCase();
+    let suffix = writtenSuffix;
+    if (suffix.startsWith("°")) suffix = `dim${suffix.slice(1)}`;
+    else if (suffix === "ø" || suffix === "ø7") suffix = "m7b5";
+    const explicitTriad = /^(m|dim|aug|\+|sus|5)/.test(suffix);
+    if (lowerCase && !explicitTriad) suffix = `m${suffix}`;
+
+    return `${accidentals}${roman.toUpperCase()}${suffix}`;
+  });
+
+  const chords = Progression.fromRomanNumerals(normalizedRoot, tonalTokens);
+  chords.forEach((chord, index) => {
+    if (!chord || Chord.get(chord).empty)
+      throw new Error(`Could not resolve Roman chord "${tokens[index]}"`);
+  });
+  const voicings = Voicing.sequence(chords, [
+    midiToNote(low),
+    midiToNote(high),
+  ]);
+  if (
+    voicings.length !== chords.length ||
+    voicings.some((notes) => !notes.length)
+  )
+    throw new Error(
+      `Could not voice every chord between ${midiToNote(low)} and ${midiToNote(high)}`,
+    );
+  return { chords, voicings };
 }
 
 /**

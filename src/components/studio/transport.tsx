@@ -11,7 +11,9 @@ import {
 import { useStore } from "zustand";
 
 import { AddTrackMenu } from "./add-track-menu";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field, FieldTitle } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { togglePlay } from "@/lib/studio/playback";
@@ -21,6 +23,7 @@ import { PITCH_CLASSES, SCALE_NAMES, isScaleName } from "@/lib/studio/theory";
 
 const selectClass =
   "border-input bg-background h-8 rounded-lg border px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30";
+const percentFormat = { style: "percent" } satisfies Intl.NumberFormatOptions;
 
 export function Transport() {
   const playing = useStudio((s) => s.playing);
@@ -34,6 +37,7 @@ export function Transport() {
   const commit = useStudio((s) => s.commit);
   const canUndo = useStore(studioHistory, (s) => s.pastStates.length > 0);
   const canRedo = useStore(studioHistory, (s) => s.futureStates.length > 0);
+  const swingPercent = Math.round(swing * 100);
 
   return (
     <div className="bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
@@ -72,14 +76,16 @@ export function Transport() {
         />
       </label>
 
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Swing</span>
+      <Field orientation="horizontal" className="w-auto">
+        <FieldTitle>Swing</FieldTitle>
         <Slider
           className="w-24"
           min={0}
           max={0.6}
           step={0.02}
           value={swing}
+          aria-label="Swing"
+          format={percentFormat}
           onValueChange={(value) => {
             const v = typeof value === "number" ? value : value[0];
             commit("human", `Set swing to ${Math.round(v * 100)}%`, (d) => {
@@ -87,10 +93,8 @@ export function Transport() {
             });
           }}
         />
-        <span className="text-muted-foreground w-8 text-xs tabular-nums">
-          {Math.round(swing * 100)}%
-        </span>
-      </label>
+        <Badge variant="outline">{swingPercent}%</Badge>
+      </Field>
 
       <label className="flex items-center gap-2 text-sm">
         <span className="text-muted-foreground">Bars</span>
