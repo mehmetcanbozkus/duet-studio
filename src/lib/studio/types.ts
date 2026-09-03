@@ -91,6 +91,8 @@ export interface ActivityEntry {
   label: string;
   tool?: string;
   args?: unknown;
+  /** 0-indexed step the change targeted, so get_recent_changes can give the agent an exact index. */
+  step?: number;
   /** Song snapshot before the change; absent for read-only or failed calls. */
   before?: Song;
   /** Song snapshot after the change, used by expandable activity receipts. */

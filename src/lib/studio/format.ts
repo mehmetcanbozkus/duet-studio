@@ -17,7 +17,11 @@ export function patternString(steps: number[]) {
   return out;
 }
 
-/** Human-facing position for a range of zero-indexed sequencer steps. */
+/** One step in the words the grid uses with the human: bars and steps counted from 1. */
+export function stepLabel(step: number) {
+  return `bar ${Math.floor(step / STEPS_PER_BAR) + 1} step ${(step % STEPS_PER_BAR) + 1}`;
+}
+
 export function stepRangeLabel(from: number, to: number) {
   const startBar = Math.floor(from / STEPS_PER_BAR) + 1;
   const endBar = Math.floor(to / STEPS_PER_BAR) + 1;
@@ -70,47 +74,85 @@ export function songHeadline(song: Song) {
 }
 
 /** Human-and-agent readable snapshot of the song. */
+/**
+ * Chrome asks for a single tool output to stay near 1.5K characters. A song with several dense
+ * melodic tracks blows past that, so the overview shortens its note lists until it fits and points
+ * the agent at `get_song track=<id>`, which returns that one track in full.
+ */
+const OVERVIEW_BUDGET = 1400;
+const NOTE_CAPS = [800, 400, 200, 100, 50];
+
 export function describeSong(
   song: Song,
   extra: { playing: boolean; step: number; selection: Selection | null },
+  focus?: Track,
 ) {
   const total = totalSteps(song);
-  const lines: string[] = [];
-  lines.push(
+  const head = [
     `"${song.title}" — ${song.bpm} BPM, swing ${Math.round(song.swing * 100)}%, ${song.bars} bar${song.bars > 1 ? "s" : ""} (steps 0-${total - 1}), key ${song.key} ${song.scale.replace("_", " ")}.`,
-  );
-  lines.push(
     extra.playing
       ? `Transport: playing, at step ${extra.step}.`
       : "Transport: stopped.",
-  );
-  if (song.tracks.length === 0) {
-    lines.push("No tracks yet. Use add_track.");
-  } else {
-    lines.push("Tracks:");
-    song.tracks.forEach((track, index) => {
-      const flags = [track.mute ? "muted" : null, track.solo ? "solo" : null]
-        .filter(Boolean)
-        .join(", ");
-      // The instrument id, not its label: every tool's `track` argument accepts it verbatim.
-      const header = `${index + 1}. ${track.name} [${track.instrument}, id=${track.id}, vol ${track.volume.toFixed(2)}${flags ? ", " + flags : ""}]`;
-      lines.push(header);
-      if (track.kind === "drum") {
-        lines.push(`   ${patternString(track.steps)}`);
-      } else if (track.notes.length === 0) {
-        lines.push("   (no notes)");
-      } else {
-        lines.push(`   ${notesString(track.notes)}`);
-      }
-    });
-  }
+  ];
+  const tail: string[] = [];
   if (extra.selection) {
     const track = song.tracks.find((t) => t.id === extra.selection?.trackId);
     if (track) {
-      lines.push(
+      tail.push(
         `The human has selected steps ${extra.selection.from}-${extra.selection.to} on track "${track.name}" (id ${track.id}). Use edit_selection to act on exactly that range.`,
       );
     }
   }
-  return lines.join("\n");
+
+  const trackLines = (track: Track, index: number, noteCap: number) => {
+    const flags = [track.mute ? "muted" : null, track.solo ? "solo" : null]
+      .filter(Boolean)
+      .join(", ");
+    // The instrument id, not its label: every tool's `track` argument accepts it verbatim.
+    const lines = [
+      `${index + 1}. ${track.name} [${track.instrument}, id=${track.id}, vol ${track.volume.toFixed(2)}${flags ? ", " + flags : ""}]`,
+    ];
+    if (track.kind === "drum") lines.push(`   ${patternString(track.steps)}`);
+    else if (track.notes.length === 0) lines.push("   (no notes)");
+    else lines.push(`   ${notesString(track.notes, noteCap)}`);
+    return lines;
+  };
+
+  if (focus) {
+    const index = song.tracks.findIndex((t) => t.id === focus.id);
+    return [
+      ...head,
+      `Track ${index + 1} of ${song.tracks.length}, in full:`,
+      ...trackLines(focus, index, Number.MAX_SAFE_INTEGER),
+      ...tail,
+    ].join("\n");
+  }
+
+  if (song.tracks.length === 0) {
+    return [...head, "No tracks yet. Use add_track.", ...tail].join("\n");
+  }
+
+  const render = (noteCap: number) => {
+    const lines = [
+      ...head,
+      "Tracks:",
+      ...song.tracks.flatMap((track, index) =>
+        trackLines(track, index, noteCap),
+      ),
+    ];
+    const shortened = lines.some((line) => line.includes("… +"));
+    if (shortened) {
+      lines.push(
+        'Note lists above are shortened; read one track in full with get_song track="<id>".',
+      );
+    }
+    return [...lines, ...tail].join("\n");
+  };
+
+  const last = NOTE_CAPS[NOTE_CAPS.length - 1];
+  for (const cap of NOTE_CAPS) {
+    const text = render(cap);
+    if (text.length <= OVERVIEW_BUDGET || cap === last) return text;
+  }
+  return render(last);
 }

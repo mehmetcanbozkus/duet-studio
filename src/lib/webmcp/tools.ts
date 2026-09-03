@@ -163,21 +163,36 @@ export const TOOLS: ToolSpec[] = [
     name: "get_song",
     title: "Read the song",
     description:
-      "Read the whole song as text: tempo, swing, bars, key/scale, tracks, transport and human selection. Call this first; use get_recent_changes for later human edits, then read the song again when you need full detail. Steps are 0-indexed 16ths, 16 per bar. Drums: X accent, x hit, o soft, . rest. Melodic notes: step:Note(length).",
+      "Read the song as text: tempo, swing, bars, key/scale, tracks, transport and human selection. Call this first; use get_recent_changes for later human edits. Long note lists are shortened here — pass track to read that one track in full. Steps are 0-indexed 16ths, 16 per bar. Drums: X accent, x hit, o soft, . rest. Melodic notes: step:Note(length).",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        track: {
+          type: "string",
+          maxLength: 64,
+          description:
+            "Omit for the whole song. Pass a track id (preferred), exact track name, instrument id, or 1-based position to read that track's notes in full.",
+        },
+      },
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, ...ECHOES_SONG_TEXT },
     readLabel: "Read the song",
-    execute: () => {
+    execute: (args) => {
       const s = state();
-      return describeSong(s.song, {
-        playing: s.playing,
-        step: s.currentStep,
-        selection: s.selection,
-      });
+      const focus =
+        args.track === undefined
+          ? undefined
+          : findTrack(s.song, String(args.track));
+      return describeSong(
+        s.song,
+        {
+          playing: s.playing,
+          step: s.currentStep,
+          selection: s.selection,
+        },
+        focus,
+      );
     },
   },
   {
@@ -210,6 +225,8 @@ export const TOOLS: ToolSpec[] = [
         .map((entry) => ({
           at: new Date(entry.at).toISOString(),
           change: entry.label,
+          // The label reads in the human's 1-indexed bar/step words; tools take 0-indexed steps.
+          ...(entry.step === undefined ? {} : { step: entry.step }),
         }));
       return {
         message:
@@ -414,7 +431,7 @@ export const TOOLS: ToolSpec[] = [
     name: "add_track",
     title: "Add track",
     description:
-      "Add a new track. Drum tracks take an optional pattern string (X accent, x hit, o soft, . rest; 16 chars per bar, short patterns repeat). Melodic tracks take optional notes. Returns the new track id.",
+      "Add a new track. Drum tracks take an optional pattern string (X accent, x hit, o soft, . rest; - _ 0 also read as rest and 1 as hit; 16 chars per bar, short patterns repeat). Melodic tracks take optional notes. Returns the new track id.",
     inputSchema: {
       type: "object",
       properties: {
@@ -546,7 +563,7 @@ export const TOOLS: ToolSpec[] = [
     name: "set_drum_pattern",
     title: "Write drum pattern",
     description:
-      "Replace a drum track using either a pattern string (X accent, x hit, o soft, . rest) or euclid { hits, steps, rotate? }. Short patterns repeat across the song; `bar` targets one 16-step bar.",
+      "Replace a drum track using either a pattern string (X accent, x hit, o soft, . rest; - _ 0 also read as rest and 1 as hit) or euclid { hits, steps, rotate? }. Short patterns repeat across the song; `bar` targets one 16-step bar.",
     inputSchema: {
       type: "object",
       properties: {

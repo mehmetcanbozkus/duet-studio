@@ -225,8 +225,12 @@ await page.$eval('button[aria-label="Kick step 2 off"]', (button) =>
 );
 let recent = text(await call("get_recent_changes"));
 expect(
-  recent.changes?.some((entry) => /Hit step 1 on Kick/.test(entry.change)),
-  "get_recent_changes reports a human edit",
+  // The label speaks the grid's 1-indexed words; `step` carries the 0-indexed one tools take.
+  recent.changes?.some(
+    (entry) =>
+      /Hit bar 1 step 2 on Kick/.test(entry.change) && entry.step === 1,
+  ),
+  "get_recent_changes reports a human edit with its step index",
   JSON.stringify(recent.changes),
 );
 recent = text(await call("get_recent_changes"));
@@ -244,7 +248,7 @@ expect(
 let r = text(
   await call("add_track", {
     instrument: "snare",
-    name: "Snare",
+    name: "Fill",
     pattern: "....X.......X...",
   }),
 );
@@ -345,13 +349,13 @@ expect(
   bad.content[0].text.slice(0, 120),
 );
 
-// dynamic tool: absent until the human shift-drags a selection on the snare row
+// dynamic tool: absent until the human shift-drags a selection on the Fill row
 expect(
   (await hasTool("edit_selection")) === false,
   "edit_selection absent without selection",
 );
-const cells = await page.$$('button[aria-label^="Snare step"]');
-expect(cells.length === 32, "snare row has 32 cells", cells.length);
+const cells = await page.$$('button[aria-label^="Fill step"]');
+expect(cells.length === 32, "Fill row has 32 cells", cells.length);
 const a = await cells[8].boundingBox();
 const b = await cells[15].boundingBox();
 await page.keyboard.down("Shift");
@@ -370,13 +374,13 @@ const contextText = await page.$eval(
   (element) => element.textContent,
 );
 expect(
-  /Agent context.*Snare.*Bar 1.*Steps 9–16.*Make a fill/.test(contextText),
+  /Agent context.*Fill.*Bar 1.*Steps 9–16.*Make a fill/.test(contextText),
   "selection becomes visible agent context",
   contextText.replace(/\s+/g, " ").trim(),
 );
 grid = text(await call("get_song"));
 expect(
-  /selected steps 8-15 on track "Snare"/.test(grid),
+  /selected steps 8-15 on track "Fill"/.test(grid),
   "get_song reports the selection",
 );
 r = text(
@@ -433,7 +437,7 @@ const targetCount = await page.$$eval(
   (elements) => elements.length,
 );
 expect(
-  targetCount === 5,
+  targetCount === 6,
   "running tool highlights its target tracks",
   targetCount,
 );
@@ -442,7 +446,7 @@ if (dialog)
 r = text(await pending);
 expect(r.confirmed === false, "declined clear_song leaves the song", r.message);
 grid = text(await call("get_song"));
-expect(/^5\. /m.test(grid), "song still has 5 tracks after decline");
+expect(/^6\. /m.test(grid), "song still has 6 tracks after decline");
 
 const midiPath = await download("MIDI", ".mid");
 const midiBytes = await readFile(midiPath);
@@ -496,6 +500,33 @@ if (shareLink) {
   expect(restored, "the share link reopens the same song");
   await guest.close();
 }
+
+// output budget: a dense 4-bar song is where get_song used to run past Chrome's guidance
+await call("set_song_meta", { bars: 4 });
+const denseNotes = Array.from({ length: 64 }, (_, step) => ({
+  step,
+  note: ["A2", "C3", "E3", "G3"][step % 4],
+}));
+await call("set_notes", { track: "bass", notes: denseNotes });
+await call("set_notes", { track: "Chords", notes: denseNotes });
+const dense = text(await call("get_song"));
+expect(
+  /shortened/.test(dense),
+  "get_song shortens long note lists and says so",
+  `${dense.length} chars`,
+);
+const focused = text(await call("get_song", { track: "bass" }));
+expect(
+  /\b63:G3\b/.test(focused) && !focused.includes("…"),
+  "get_song track=... returns that track's notes in full",
+  `${focused.length} chars`,
+);
+const missingTrack = await call("get_song", { track: "nope" });
+expect(
+  missingTrack.isError === true &&
+    /No track matches "nope"/.test(missingTrack.content[0].text),
+  "get_song rejects an unknown track",
+);
 
 await page.screenshot({ path: shot, fullPage: false });
 console.log("screenshot:", shot);

@@ -29,7 +29,7 @@ export interface StudioState {
     actor: Actor,
     label: string,
     mutate: (draft: Song) => void,
-    meta?: { tool?: string; args?: unknown },
+    meta?: { tool?: string; args?: unknown; step?: number },
   ) => void;
   logActivity: (entry: Omit<ActivityEntry, "id" | "at">) => void;
   loadSong: (song: Song, label: string, actor?: Actor) => void;
@@ -89,6 +89,7 @@ export const useStudio = create<StudioState>()(
             label,
             tool: meta?.tool,
             args: meta?.args,
+            step: meta?.step,
             before,
             after: draft,
           });
