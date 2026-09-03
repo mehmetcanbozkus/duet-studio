@@ -105,7 +105,10 @@ export function Studio() {
   }, [setSelection]);
 
   return (
-    <div className="flex min-h-svh flex-1 flex-col">
+    // On a wide screen the studio is an app shell: the page itself never
+    // scrolls, the grid and the sidebar scroll inside their own panels. Below
+    // `lg` it goes back to a normal document that grows with its content.
+    <div className="flex min-h-svh flex-1 flex-col lg:h-svh lg:min-h-0 lg:flex-none lg:overflow-hidden">
       <Header />
       <Transport />
       {/* Floated out of the flow on purpose: an in-flow banner would shove the
@@ -117,11 +120,11 @@ export function Studio() {
           and stop playback too.
         </p>
       )}
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-1 flex-col gap-4 p-4 lg:min-h-0 lg:flex-row">
+        <div className="min-w-0 flex-1 lg:min-h-0">
           <Sequencer />
         </div>
-        <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+        <aside className="flex w-full shrink-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:w-80 lg:overflow-y-auto">
           <Sidebar />
           <Safe name="Built-in agent">
             <AgentPanel />

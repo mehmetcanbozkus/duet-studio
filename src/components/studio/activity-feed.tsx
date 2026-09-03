@@ -154,7 +154,7 @@ export function ActivityFeed() {
   }, []);
 
   return (
-    <Card size="sm" className="flex min-h-0 flex-1 flex-col">
+    <Card size="sm" className="flex min-h-0 flex-1 flex-col lg:min-h-48">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm">
           <History className="size-4" />
@@ -165,12 +165,15 @@ export function ActivityFeed() {
         </CardTitle>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 p-0">
-        <ScrollArea className="h-[40vh] px-3 pb-3 lg:h-[calc(100vh-24rem)]">
+        <ScrollArea className="max-h-[40vh] px-3 pb-3 lg:h-full lg:max-h-none">
           {activity.length === 0 ? (
-            <p className="text-muted-foreground px-1 py-4 text-xs">
-              Edits by you and your agent show up here, each with a way to
-              revert.
-            </p>
+            <div className="text-muted-foreground flex flex-col items-center gap-2 px-4 py-8 text-center lg:h-full lg:justify-center lg:py-4">
+              <History className="size-5 opacity-40" />
+              <p className="text-xs">
+                Every edit — yours and your agent&apos;s — lands here with the
+                tool that made it and a one-click revert.
+              </p>
+            </div>
           ) : (
             <ol className="flex flex-col gap-1">
               {activity.map((entry) => (

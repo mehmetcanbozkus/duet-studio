@@ -52,6 +52,9 @@
 }
 
 :root {
+  /* Native controls (selects, scrollbars, the date picker) follow the theme
+     instead of rendering as light widgets on the dark UI. */
+  color-scheme: light;
   --radius: 0.625rem;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -90,6 +93,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

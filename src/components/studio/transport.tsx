@@ -14,6 +14,14 @@ import { AddTrackMenu } from "./add-track-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldTitle } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { togglePlay } from "@/lib/studio/playback";
@@ -21,8 +29,7 @@ import { resizeSong } from "@/lib/studio/song";
 import { redo, studioHistory, undo, useStudio } from "@/lib/studio/store";
 import { PITCH_CLASSES, SCALE_NAMES, isScaleName } from "@/lib/studio/theory";
 
-const selectClass =
-  "border-input bg-background h-8 rounded-lg border px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30";
+const scaleLabel = (name: string) => name.replace("_", " ");
 const percentFormat = { style: "percent" } satisfies Intl.NumberFormatOptions;
 
 export function Transport() {
@@ -62,7 +69,7 @@ export function Transport() {
 
         <label className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">BPM</span>
-          <input
+          <Input
             type="number"
             min={40}
             max={240}
@@ -76,7 +83,7 @@ export function Transport() {
                 d.bpm = value;
               });
             }}
-            className={`${selectClass} w-18 tabular-nums`}
+            className="w-18 tabular-nums"
           />
         </label>
 
@@ -123,62 +130,74 @@ export function Transport() {
           <Badge variant="outline">{swingPercent}%</Badge>
         </Field>
 
-        <label className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">Bars</span>
-          <select
-            className={selectClass}
+          <Select
             value={bars}
-            onChange={(e) => {
-              const value = Number(e.target.value) as 1 | 2 | 4;
+            onValueChange={(value: 1 | 2 | 4 | null) => {
+              if (value === null) return;
               commit("human", `Set length to ${value} bar(s)`, (d) =>
                 resizeSong(d, value),
               );
             }}
           >
-            {[1, 2, 4].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger aria-label="Bars" className="min-w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 4].map((n) => (
+                <SelectItem key={n} value={n}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-sm">
         <span className="text-muted-foreground">Key</span>
-        <select
-          className={selectClass}
+        <Select
           value={key}
-          onChange={(e) =>
-            commit("human", `Set key to ${e.target.value}`, (d) => {
-              d.key = e.target.value;
-            })
-          }
+          onValueChange={(value: string | null) => {
+            if (value === null) return;
+            commit("human", `Set key to ${value}`, (d) => {
+              d.key = value;
+            });
+          }}
         >
-          {PITCH_CLASSES.map((pc) => (
-            <option key={pc} value={pc}>
-              {pc}
-            </option>
-          ))}
-        </select>
-        <select
-          className={selectClass}
+          <SelectTrigger aria-label="Key" className="min-w-16">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PITCH_CLASSES.map((pc) => (
+              <SelectItem key={pc} value={pc}>
+                {pc}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
           value={scale}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (!isScaleName(value)) return;
+          onValueChange={(value: string | null) => {
+            if (value === null || !isScaleName(value)) return;
             commit("human", `Set scale to ${value}`, (d) => {
               d.scale = value;
             });
           }}
         >
-          {SCALE_NAMES.map((name) => (
-            <option key={name} value={name}>
-              {name.replace("_", " ")}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger aria-label="Scale" className="min-w-32">
+            <SelectValue>{(value: string) => scaleLabel(value)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {SCALE_NAMES.map((name) => (
+              <SelectItem key={name} value={name}>
+                {scaleLabel(name)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Pushed right only once the whole bar fits on one line; on a wrapped
           bar it stays flush left with everything else. */}

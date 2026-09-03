@@ -22,6 +22,7 @@ const appDescription =
   "A browser music studio where you and your AI agent produce a track together. Built on WebMCP: the whole song is exposed as tools the agent can hear and play.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://duetstudio.mehmetcan.me"),
   title: {
     default: appName,
     template: `%s | ${appName}`,

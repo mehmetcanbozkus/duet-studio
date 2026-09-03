@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
-import { stepRangeLabel } from "@/lib/studio/format";
+import { stepLabel, stepRangeLabel } from "@/lib/studio/format";
 import { INSTRUMENT_BY_ID } from "@/lib/studio/instruments";
 import { getEngine } from "@/lib/studio/playback";
 import { useStudio } from "@/lib/studio/store";
@@ -166,9 +166,11 @@ function TrackHeader({
           >
             {track.name}
           </span>
-          <span className="text-muted-foreground truncate text-[10px]">
-            {info.label}
-          </span>
+          {track.name.toLowerCase() !== info.label.toLowerCase() && (
+            <span className="text-muted-foreground truncate text-[10px]">
+              {info.label}
+            </span>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -275,12 +277,17 @@ function DrumRow({
   const selected = useIsSelected(track.id);
 
   const setStep = (step: number, velocity: number, label: string) =>
-    commit("human", label, (draft) => {
-      const t = draft.tracks.find((x) => x.id === track.id);
-      if (t?.kind !== "drum") return;
-      t.steps[step] = velocity;
-      t.editedBy[step] = "human";
-    });
+    commit(
+      "human",
+      label,
+      (draft) => {
+        const t = draft.tracks.find((x) => x.id === track.id);
+        if (t?.kind !== "drum") return;
+        t.steps[step] = velocity;
+        t.editedBy[step] = "human";
+      },
+      { step },
+    );
 
   return (
     <div className="relative flex">
@@ -309,9 +316,17 @@ function DrumRow({
               onClick={(e) => {
                 if (isSelectGesture(e)) return;
                 if (velocity > 0) {
-                  setStep(step, 0, `Cleared step ${step} on ${track.name}`);
+                  setStep(
+                    step,
+                    0,
+                    `Cleared ${stepLabel(step)} on ${track.name}`,
+                  );
                 } else {
-                  setStep(step, 0.75, `Hit step ${step} on ${track.name}`);
+                  setStep(
+                    step,
+                    0.75,
+                    `Hit ${stepLabel(step)} on ${track.name}`,
+                  );
                   getEngine().preview(track);
                 }
               }}
@@ -323,7 +338,7 @@ function DrumRow({
                 setStep(
                   step,
                   next,
-                  `Changed velocity at step ${step} on ${track.name}`,
+                  `Changed velocity at ${stepLabel(step)} on ${track.name}`,
                 );
               }}
               title="Click: toggle · Right-click: accent/soft · Shift+drag: select"
@@ -372,11 +387,16 @@ function MelodicRoll({
     if (!fold || used || isInScale(p, key, scale)) pitches.push(p);
   }
 
-  const edit = (label: string, fn: (t: MelodicTrack) => void) =>
-    commit("human", label, (draft) => {
-      const t = draft.tracks.find((x) => x.id === track.id);
-      if (t?.kind === "melodic") fn(t);
-    });
+  const edit = (label: string, fn: (t: MelodicTrack) => void, step?: number) =>
+    commit(
+      "human",
+      label,
+      (draft) => {
+        const t = draft.tracks.find((x) => x.id === track.id);
+        if (t?.kind === "melodic") fn(t);
+      },
+      { step },
+    );
 
   const rootClass = normalizePitchClass(key);
 
@@ -471,7 +491,7 @@ function MelodicRoll({
                         );
                       } else {
                         edit(
-                          `Added ${midiToNote(pitch)} at step ${step} on ${track.name}`,
+                          `Added ${midiToNote(pitch)} at ${stepLabel(step)} on ${track.name}`,
                           (t) => {
                             t.notes.push({
                               step,
@@ -481,6 +501,7 @@ function MelodicRoll({
                               by: "human",
                             });
                           },
+                          step,
                         );
                         getEngine().preview(track, pitch);
                       }
@@ -585,9 +606,29 @@ export function Sequencer() {
       )?.target,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [moreToTheRight, setMoreToTheRight] = useState(false);
   const selectionTrack = selection
     ? tracks.find((track) => track.id === selection.trackId)
     : undefined;
+
+  // The grid is usually wider than its panel, and a cut-off column at the edge
+  // reads as a broken layout rather than as "there is more over here".
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const update = () =>
+      setMoreToTheRight(
+        element.scrollWidth - element.clientWidth - element.scrollLeft > 4,
+      );
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [total]);
 
   const copySelectionPrompt = async () => {
     if (!selection || !selectionTrack) return;
@@ -606,79 +647,87 @@ export function Sequencer() {
   };
 
   return (
-    <div className="bg-card overflow-hidden rounded-xl border [--gutter:10rem] sm:[--gutter:12rem]">
-      <div ref={scrollRef} className="overflow-x-auto">
+    <div className="bg-card flex flex-col overflow-hidden rounded-xl border [--gutter:10rem] sm:[--gutter:12rem] lg:h-full">
+      <div className="relative flex min-h-0 flex-col lg:flex-1">
         <div
-          className="relative"
-          style={{ minWidth: `calc(${GUTTER} + ${total * CELL_W}px)` }}
+          ref={scrollRef}
+          className="min-h-0 overflow-x-auto lg:flex-1 lg:overflow-y-auto"
         >
-          {/* ruler */}
-          <div className="bg-muted/40 flex border-b">
-            <div
-              className={cn(
-                "text-muted-foreground flex items-center px-2 text-[11px]",
-                GUTTER_CLASS,
-              )}
-              style={{ width: GUTTER }}
-            >
-              {tracks.length} track{tracks.length === 1 ? "" : "s"}
-            </div>
-            {Array.from({ length: total }, (_, step) => (
+          <div
+            className="relative"
+            style={{ minWidth: `calc(${GUTTER} + ${total * CELL_W}px)` }}
+          >
+            {/* ruler */}
+            <div className="bg-muted sticky top-0 z-20 flex border-b">
               <div
-                key={step}
                 className={cn(
-                  "text-muted-foreground flex h-6 items-center justify-center text-[10px] tabular-nums",
-                  stepBorder(step),
-                  step % 4 === 0 && "text-foreground/80",
+                  "text-muted-foreground flex items-center px-2 text-[11px]",
+                  GUTTER_CLASS,
                 )}
-                style={{ width: CELL_W }}
+                style={{ width: GUTTER }}
               >
-                {step % 4 === 0
-                  ? `${Math.floor(step / STEPS_PER_BAR) + 1}.${(step % STEPS_PER_BAR) / 4 + 1}`
-                  : step % 4 === 2
-                    ? "·"
-                    : ""}
+                {tracks.length} track{tracks.length === 1 ? "" : "s"}
               </div>
-            ))}
-          </div>
-
-          {/* tracks */}
-          {tracks.length === 0 ? (
-            <p className="text-muted-foreground px-6 py-16 text-center text-sm">
-              No tracks. Add one above, or ask your agent to build a beat from
-              scratch.
-            </p>
-          ) : (
-            <div key={trackIds}>
-              {tracks.map((track) =>
-                track.kind === "drum" ? (
-                  <DrumRow
-                    key={track.id}
-                    track={track}
-                    agentTarget={agentTarget}
-                  />
-                ) : (
-                  <MelodicRoll
-                    key={track.id}
-                    track={track}
-                    agentTarget={agentTarget}
-                  />
-                ),
-              )}
+              {Array.from({ length: total }, (_, step) => (
+                <div
+                  key={step}
+                  className={cn(
+                    "text-muted-foreground flex h-6 items-center justify-center text-[10px] tabular-nums",
+                    stepBorder(step),
+                    step % 4 === 0 && "text-foreground/80",
+                  )}
+                  style={{ width: CELL_W }}
+                >
+                  {step % 4 === 0
+                    ? `${Math.floor(step / STEPS_PER_BAR) + 1}.${(step % STEPS_PER_BAR) / 4 + 1}`
+                    : step % 4 === 2
+                      ? "·"
+                      : ""}
+                </div>
+              ))}
             </div>
-          )}
 
-          {/* playhead */}
-          {currentStep >= 0 && (
-            <div
-              className="bg-foreground/10 border-foreground/30 pointer-events-none absolute inset-y-0 border-x"
-              style={{
-                left: `calc(${GUTTER} + ${currentStep * CELL_W}px)`,
-                width: CELL_W,
-              }}
-            />
-          )}
+            {/* tracks */}
+            {tracks.length === 0 ? (
+              <p className="text-muted-foreground px-6 py-16 text-center text-sm">
+                No tracks. Add one above, or ask your agent to build a beat from
+                scratch.
+              </p>
+            ) : (
+              <div key={trackIds}>
+                {tracks.map((track) =>
+                  track.kind === "drum" ? (
+                    <DrumRow
+                      key={track.id}
+                      track={track}
+                      agentTarget={agentTarget}
+                    />
+                  ) : (
+                    <MelodicRoll
+                      key={track.id}
+                      track={track}
+                      agentTarget={agentTarget}
+                    />
+                  ),
+                )}
+              </div>
+            )}
+
+            {/* playhead */}
+            {currentStep >= 0 && (
+              <div
+                className="bg-foreground/10 border-foreground/30 pointer-events-none absolute inset-y-0 border-x"
+                style={{
+                  left: `calc(${GUTTER} + ${currentStep * CELL_W}px)`,
+                  width: CELL_W,
+                }}
+              />
+            )}
+          </div>
         </div>
+        {moreToTheRight && (
+          <div className="from-card pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l to-transparent" />
+        )}
       </div>
       {selection && selectionTrack && (
         <div

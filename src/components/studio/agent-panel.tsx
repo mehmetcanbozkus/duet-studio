@@ -164,7 +164,9 @@ export function AgentPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <div className="flex gap-2">
+        {/* A password field outside a form makes Chrome complain in the console;
+            submitting is a no-op because the key is only used when you chat. */}
+        <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
           <div className="relative flex-1">
             <KeyRound className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
             <Input
@@ -185,7 +187,7 @@ export function AgentPanel() {
             aria-label="Model id"
             title="OpenAI model id"
           />
-        </div>
+        </form>
         <div className="flex items-center justify-between gap-2">
           <Label className="text-muted-foreground text-xs font-normal">
             <Switch

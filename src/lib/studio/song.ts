@@ -144,23 +144,41 @@ export function findTrack(song: Song, ref: string | number): Track {
   );
 }
 
+/**
+ * The song the studio opens with. It is a finished little loop rather than an
+ * empty grid: the first screen has to sound like something and show the
+ * provenance colours doing their job. Everything here is the human's, so the
+ * agent's first edit stands out against it.
+ */
 export function defaultSong(): Song {
   const song: Song = {
-    title: "Untitled groove",
+    title: "First Light",
     bpm: 112,
-    swing: 0,
+    swing: 0.12,
     bars: 2,
     key: "A",
     scale: "minor",
     tracks: [],
   };
   const kick = createTrack("kick", "human", song) as DrumTrack;
-  applyPattern(kick, "X...x...X...x...", "human");
-  kick.editedBy.fill(null);
+  applyPattern(kick, "X...x...X...x...X...x.....x.x...", "human");
+  const snare = createTrack("snare", "human", song) as DrumTrack;
+  applyPattern(snare, "....X.......X.......X.......X..x", "human");
   const hat = createTrack("hat_closed", "human", song, "Hats") as DrumTrack;
-  applyPattern(hat, "..x...x...x...x.", "human");
-  hat.editedBy.fill(null);
+  applyPattern(hat, "..x.o.x...x.o.x...x.o.x...x.o.xx", "human");
   const bass = createTrack("bass", "human", song) as MelodicTrack;
-  song.tracks = [kick, hat, bass];
+  // A minor, one root per half bar with a passing note before each change.
+  bass.notes = [
+    { step: 0, pitch: 33, length: 3, velocity: 0.9, by: "human" },
+    { step: 6, pitch: 33, length: 2, velocity: 0.7, by: "human" },
+    { step: 8, pitch: 40, length: 3, velocity: 0.8, by: "human" },
+    { step: 14, pitch: 36, length: 2, velocity: 0.7, by: "human" },
+    { step: 16, pitch: 33, length: 3, velocity: 0.9, by: "human" },
+    { step: 22, pitch: 33, length: 2, velocity: 0.7, by: "human" },
+    { step: 24, pitch: 31, length: 3, velocity: 0.85, by: "human" },
+    { step: 28, pitch: 36, length: 2, velocity: 0.7, by: "human" },
+    { step: 30, pitch: 40, length: 2, velocity: 0.75, by: "human" },
+  ];
+  song.tracks = [kick, snare, hat, bass];
   return song;
 }
