@@ -53,6 +53,7 @@ Read tools carry `readOnlyHint: true`. Every tool whose output can echo the song
 - **tonal** for music theory, **zustand + zundo** for state and undo history, **lz-string** for share links.
 - **[`webmcp-types`](https://github.com/webmachinelearning/webmcp-types)** (the spec's official typings) types `document.modelContext`. Registration is ~40 lines of our own: each tool calls `registerTool(..., { signal })`, aborts the signal to unregister when the component unmounts or the tool's `when` condition flips, awaits the returned promise so `NotAllowedError` (permissions policy) surfaces as a toast, and forwards the host's `AbortSignal` into the tool so a cancelled `clear_song` closes its confirmation dialog.
 - **Vercel AI SDK** (`ai` + `@ai-sdk/openai`) runs the built-in fallback agent's tool loop with `dynamicTool` definitions built from the discovered WebMCP tools.
+- **[Vercel Web Analytics](https://vercel.com/docs/analytics)** (`@vercel/analytics`, cookie-free page views) is rendered only when the build runs on Vercel (`VERCEL=1`), so local production builds and the smoke tests never request the insights script.
 
 Key files:
 

@@ -27,11 +27,12 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 - `bun run check` runs lint, typecheck, and formatting checks.
 - `bun run smoke` runs the headless WebMCP smoke test against a running server; it asserts registration, titles/annotations, validation errors, the dynamic selection tool, playback, the confirmation flow, output sizes (≤1.5K chars) and a clean console, and exits 1 on any failure.
 - `bun run smoke:hosts` checks the page against a minimal `document.modelContext` (registerTool only, injected at load and late) so hosts like ChatGPT's browser cannot crash it. `bun run smoke:all` runs both.
-- Both default to http://localhost:3000/ and Chromium at /usr/bin/chromium; override with `SMOKE_URL=http://localhost:3123/` and `CHROMIUM=/path/to/chrome`. The app itself reads no environment variables.
+- Both default to http://localhost:3000/ and Chromium at /usr/bin/chromium; override with `SMOKE_URL=http://localhost:3123/` and `CHROMIUM=/path/to/chrome`. The app itself needs no environment variables; the only one it looks at is Vercel's build-time `VERCEL` flag (see Stack).
 
 ## Stack
 
-- Next.js 16 App Router, React 19, strict TypeScript, React Compiler. The app has no server code and reads no environment variables.
+- Next.js 16 App Router, React 19, strict TypeScript, React Compiler. The app has no server code and needs no environment variables.
+- `@vercel/analytics` (Web Analytics). `src/app/layout.tsx` renders `<Analytics />` only when `process.env.VERCEL === "1"` at build time; off Vercel the insights script would 404 and fail the smoke test's clean-console assertion. Custom `track()` events are not used.
 - Tailwind CSS 4, shadcn/ui (Base UI primitives), Lucide icons.
 - Tone.js for audio, tonal for music theory, zustand + zundo for state and undo history, lz-string for share links.
 - `webmcp-types` (official spec typings, devDependency) provides the global `WebMCP` namespace and `document.modelContext`; registration is our own code in `src/lib/webmcp/register.ts`.

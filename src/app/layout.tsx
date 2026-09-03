@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import "./globals.css";
@@ -11,6 +12,10 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// Vercel sets VERCEL=1 at build time. Off Vercel the analytics script would 404,
+// so local production builds (and the smoke tests) skip it entirely.
+const onVercel = process.env.VERCEL === "1";
 
 const appName = "Duet Studio";
 const appDescription =
@@ -58,6 +63,7 @@ export default function RootLayout({
           {children}
           <Toaster />
         </ThemeProvider>
+        {onVercel ? <Analytics /> : null}
       </body>
     </html>
   );
