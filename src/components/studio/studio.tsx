@@ -13,7 +13,11 @@ import { Sequencer } from "./sequencer";
 import { Sidebar } from "./sidebar";
 import { Transport } from "./transport";
 import { togglePlay, unlockAudio } from "@/lib/studio/playback";
-import { readSongFromHash } from "@/lib/studio/share";
+import {
+  fetchSharedSong,
+  readShareId,
+  readSongFromHash,
+} from "@/lib/studio/share";
 import { redo, undo, useStudio } from "@/lib/studio/store";
 
 function isTypingTarget(target: EventTarget | null) {
@@ -31,17 +35,41 @@ export function Studio() {
   const setSelection = useStudio((s) => s.setSelection);
   const audioReady = useStudio((s) => s.audioReady);
 
-  // Load a shared song from the URL hash.
+  // Load a shared song: `?s=<id>` fetches it, the legacy `#song=` hash carries it inline.
+  // Clearing the URL first also keeps React's double-mounted effect from loading twice.
   useEffect(() => {
-    const shared = readSongFromHash();
-    if (!shared) return;
-    window.history.replaceState(null, "", window.location.pathname);
-    if ("song" in shared) {
-      loadSong(shared.song, "Opened a shared song");
-      toast.success(`Loaded "${shared.song.title}" from the link`);
-    } else {
-      toast.error("That link does not contain a valid song.");
+    const clearUrl = () =>
+      window.history.replaceState(null, "", window.location.pathname);
+
+    const inline = readSongFromHash();
+    if (inline) {
+      clearUrl();
+      if ("song" in inline) {
+        loadSong(inline.song, "Opened a shared song");
+        toast.success(`Loaded "${inline.song.title}" from the link`);
+      } else {
+        toast.error("That link does not contain a valid song.");
+      }
+      return;
     }
+
+    const shareId = readShareId();
+    if (!shareId) return;
+    clearUrl();
+
+    const pending = toast.loading("Loading the shared song…");
+    void fetchSharedSong(shareId).then(
+      (song) => {
+        loadSong(song, "Opened a shared song");
+        toast.success(`Loaded "${song.title}" from the link`, { id: pending });
+      },
+      (error: unknown) => {
+        toast.error(
+          error instanceof Error ? error.message : "Could not open that link.",
+          { id: pending },
+        );
+      },
+    );
   }, [loadSong]);
 
   // Any click unlocks the AudioContext so the agent can start playback later.

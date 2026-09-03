@@ -39,11 +39,16 @@ await client.send("Page.setDownloadBehavior", {
   downloadPath: downloadDir,
 });
 const errors = [];
-page.on("console", (m) => {
-  if (m.type() === "error" || m.type() === "warning")
-    errors.push(`[${m.type()}] ${m.text().slice(0, 300)}`);
-});
-page.on("pageerror", (e) => errors.push(`[pageerror] ${e.message}`));
+const watchConsole = (target, label = "") => {
+  target.on("console", (m) => {
+    if (m.type() === "error" || m.type() === "warning")
+      errors.push(`[${label}${m.type()}] ${m.text().slice(0, 300)}`);
+  });
+  target.on("pageerror", (e) =>
+    errors.push(`[${label}pageerror] ${e.message}`),
+  );
+};
+watchConsole(page);
 // Capture the raw registration input because older Chromium versions discard annotation fields
 // added to the spec after that browser shipped.
 await page.evaluateOnNewDocument(() => {
@@ -61,6 +66,18 @@ await page.evaluateOnNewDocument(() => {
     });
     return registerTool(tool, options);
   };
+});
+// Headless Chromium has no clipboard permission, and the fallback is a blocking window.prompt.
+await page.evaluateOnNewDocument(() => {
+  window.__clipboard = [];
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: async (value) => {
+        window.__clipboard.push(value);
+      },
+    },
+  });
 });
 await page.goto(URL, { waitUntil: "load" });
 await page.evaluate(() => localStorage.clear());
@@ -442,6 +459,43 @@ expect(
   "WAV export downloads rendered audio",
   `${wavBytes.subarray(0, 4).toString("ascii")}/${wavBytes.subarray(8, 12).toString("ascii")}`,
 );
+
+// share: the copied link must reopen this exact song in a browser that has never seen it
+await call("set_song_meta", { title: "Shared groove" });
+await page.evaluate(() => {
+  [...document.querySelectorAll("button")]
+    .find((button) => button.textContent?.trim() === "Share")
+    ?.click();
+});
+const shareLink = await page
+  .waitForFunction(() => window.__clipboard.at(-1), { timeout: 10000 })
+  .then((handle) => handle.jsonValue())
+  .catch(() => null);
+expect(
+  typeof shareLink === "string" && shareLink.startsWith(URL),
+  "Share copies a link",
+  typeof shareLink === "string"
+    ? `${shareLink.length} chars, ${shareLink.includes("?s=") ? "stored" : "inline"}`
+    : shareLink,
+);
+if (shareLink) {
+  // A fresh context has empty localStorage, so a restored song can only come from the link.
+  const guest = await browser.createBrowserContext();
+  const guestPage = await guest.newPage();
+  watchConsole(guestPage, "shared ");
+  await guestPage.goto(shareLink, { waitUntil: "load" });
+  const restored = await guestPage
+    .waitForFunction(
+      () =>
+        document.querySelector('input[aria-label="Song title"]')?.value ===
+        "Shared groove",
+      { timeout: 20000, polling: 250 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  expect(restored, "the share link reopens the same song");
+  await guest.close();
+}
 
 await page.screenshot({ path: shot, fullPage: false });
 console.log("screenshot:", shot);

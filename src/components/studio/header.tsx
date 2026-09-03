@@ -1,6 +1,7 @@
 "use client";
 
 import { Code2, Music2, Share2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { AgentStatus } from "./agent-status";
@@ -8,7 +9,8 @@ import { ExportMenu } from "./export-menu";
 import { Safe } from "./safe";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
-import { songShareUrl } from "@/lib/studio/share";
+import { Spinner } from "@/components/ui/spinner";
+import { createShareLink } from "@/lib/studio/share";
 import { useStudio } from "@/lib/studio/store";
 
 export const REPO_URL = "https://github.com/mehmetcanbozkus/duet-studio";
@@ -17,15 +19,27 @@ export function Header() {
   const title = useStudio((s) => s.song.title);
   const commit = useStudio((s) => s.commit);
 
+  const [sharing, setSharing] = useState(false);
+
   const share = async () => {
-    const url = songShareUrl(useStudio.getState().song);
+    setSharing(true);
     try {
-      await navigator.clipboard.writeText(url);
-      toast.success(
-        "Share link copied. Anyone opening it gets this exact song.",
-      );
-    } catch {
-      window.prompt("Copy this link", url);
+      const { url, short } = await createShareLink(useStudio.getState().song);
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success(
+          "Share link copied. Anyone opening it gets this exact song.",
+          {
+            description: short
+              ? undefined
+              : "Short links are unavailable here, so this one carries the whole song.",
+          },
+        );
+      } catch {
+        window.prompt("Copy this link", url);
+      }
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -55,8 +69,17 @@ export function Header() {
             <AgentStatus />
           </Safe>
           <ExportMenu />
-          <Button variant="outline" size="sm" onClick={share}>
-            <Share2 data-icon="inline-start" />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={sharing}
+            onClick={() => void share()}
+          >
+            {sharing ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <Share2 data-icon="inline-start" />
+            )}
             Share
           </Button>
           <Button

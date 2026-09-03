@@ -25,21 +25,23 @@ Duet Studio is a WebMCP-powered browser music studio built for the OpenAI WebMCP
 - `bun run dev` starts the development server.
 - `bun run build` creates the production build (no `output: "export"`; deployed on Vercel by the maintainer).
 - `bun run check` runs lint, typecheck, and formatting checks.
-- `bun run smoke` runs the headless WebMCP smoke test against a running server; it asserts registration, titles/annotations, validation errors, the dynamic selection tool, playback, the confirmation flow, output sizes (≤1.5K chars) and a clean console, and exits 1 on any failure.
+- `bun run smoke` runs the headless WebMCP smoke test against a running server; it asserts registration, titles/annotations, validation errors, the dynamic selection tool, playback, the confirmation flow, a share link that reopens the song in a fresh browser context, output sizes (≤1.5K chars) and a clean console, and exits 1 on any failure.
 - `bun run smoke:hosts` checks the page against a minimal `document.modelContext` (registerTool only, injected at load and late) so hosts like ChatGPT's browser cannot crash it. `bun run smoke:all` runs both.
-- Both default to http://localhost:3000/ and Chromium at /usr/bin/chromium; override with `SMOKE_URL=http://localhost:3123/` and `CHROMIUM=/path/to/chrome`. The app itself needs no environment variables; the only one it looks at is Vercel's build-time `VERCEL` flag (see Stack).
+- Both default to http://localhost:3000/ and Chromium at /usr/bin/chromium; override with `SMOKE_URL=http://localhost:3123/` and `CHROMIUM=/path/to/chrome`. The app runs without any environment variables; the two it looks at (`VERCEL` at build time, `BLOB_READ_WRITE_TOKEN` at request time) are optional and documented in `.env.example` and Stack.
 
 ## Stack
 
-- Next.js 16 App Router, React 19, strict TypeScript, React Compiler. The app has no server code and needs no environment variables.
+- Next.js 16 App Router, React 19, strict TypeScript, React Compiler. The studio itself is client-only; the sole server code is the share-link API.
+- Vercel Blob (`@vercel/blob`) backs short share links. `POST /api/share` stores the song and returns a 10-char id, `GET /api/share/[id]` serves it back, and the link is `/?s=<id>`. `BLOB_READ_WRITE_TOKEN` is optional and only ever read on the server: with no store connected `POST` answers `{ id: null }` and the browser falls back to the self-contained `#song=` link (thousands of characters, but no server needed). Since anyone can call `POST`, it size-caps the body and re-parses it with `parseSong`, so only songs we serialized reach the store.
 - `@vercel/analytics` (Web Analytics). `src/app/layout.tsx` renders `<Analytics />` only when `process.env.VERCEL === "1"` at build time; off Vercel the insights script would 404 and fail the smoke test's clean-console assertion. Custom `track()` events are not used.
 - Tailwind CSS 4, shadcn/ui (Base UI primitives), Lucide icons.
-- Tone.js for audio, tonal for music theory, zustand + zundo for state and undo history, lz-string for share links.
+- Tone.js for audio, tonal for music theory, zustand + zundo for state and undo history, lz-string for the inline share-link fallback.
 - `webmcp-types` (official spec typings, devDependency) provides the global `WebMCP` namespace and `document.modelContext`; registration is our own code in `src/lib/webmcp/register.ts`.
 
 ## Architecture
 
 - `src/lib/studio/types.ts` — song model (drum tracks with per-step velocity and provenance, melodic tracks with notes).
+- `src/lib/studio/share.ts` — share-link encoding and the id/blob-path format, imported by both the client and the API routes.
 - `src/lib/studio/store.ts` — zustand store; every change goes through `commit(actor, label, mutate)` which records who did it.
 - `src/lib/studio/engine.ts` — Tone.js sequencer that re-reads the song on every 16th note, so edits are heard live.
 - `src/lib/webmcp/tools.ts` — the WebMCP tool specs (name, description, JSON schema, execute). `when` makes a tool conditional (e.g. `edit_selection` only exists while the human has a selection).

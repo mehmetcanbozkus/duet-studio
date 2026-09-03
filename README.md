@@ -55,10 +55,11 @@ Read tools carry `readOnlyHint: true`. Every tool whose output can echo the song
 
 - **Next.js 16** · **React 19** · **TypeScript** · **Tailwind 4** · **shadcn/ui**
 - **Tone.js** drives the sequencer. It re-reads the song on every 16th note, so edits from either party are heard on the next step.
-- **tonal** for music theory, chord voicing and Euclidean rhythm; **zustand + zundo** for state and undo history; **lz-string** for share links.
+- **tonal** for music theory, chord voicing and Euclidean rhythm; **zustand + zundo** for state and undo history.
 - **@tonejs/midi** writes MIDI files; **Tone.Offline** plus **audiobuffer-to-wav** renders downloadable WAV audio. Export libraries load only when the human chooses a format.
 - **[`webmcp-types`](https://github.com/webmachinelearning/webmcp-types)** (the spec's official typings) types `document.modelContext`. Registration is ~40 lines of our own: each tool calls `registerTool(..., { signal })`, aborts the signal to unregister when the component unmounts or the tool's `when` condition flips, awaits the returned promise so `NotAllowedError` (permissions policy) surfaces as a toast, and forwards the host's `AbortSignal` into the tool so a cancelled `clear_song` closes its confirmation dialog.
 - **Vercel AI SDK** (`ai` + `@ai-sdk/openai`) runs the built-in fallback agent's tool loop with `dynamicTool` definitions built from the discovered WebMCP tools.
+- **Share links** are short (`/?s=<id>`): the song is stored in a **[Vercel Blob](https://vercel.com/docs/vercel-blob)** store, size-capped and re-validated on the way in and out. With no Blob store connected the endpoint says so and the Share button falls back to a self-contained **lz-string** `#song=` link that carries the whole song, so a fork with no environment variables still works.
 - **[Vercel Web Analytics](https://vercel.com/docs/analytics)** (`@vercel/analytics`, cookie-free page views) is rendered only when the build runs on Vercel (`VERCEL=1`), so local production builds and the smoke tests never request the insights script.
 
 Key files:
@@ -70,6 +71,8 @@ src/lib/webmcp/register.ts            # registerTool wrapper + MCP result shapin
 src/lib/studio/store.ts               # zustand store; commit(actor, label, mutate) records provenance
 src/lib/studio/engine.ts              # Tone.js engine
 src/lib/studio/format.ts              # the text grid the agent reads
+src/lib/studio/share.ts               # short-link ids, blob paths, inline-link fallback
+src/app/api/share/route.ts            # POST a song -> short id (validated, size-capped)
 src/lib/webmcp/browser-agent.ts       # fallback agent: getTools() -> dynamicTool -> executeTool()
 scripts/webmcp-smoke.mjs              # headless test that drives the real document.modelContext API
 ```
