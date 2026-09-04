@@ -75,12 +75,14 @@ export function songHeadline(song: Song) {
 
 /** Human-and-agent readable snapshot of the song. */
 /**
- * Chrome asks for a single tool output to stay near 1.5K characters. A song with several dense
- * melodic tracks blows past that, so the overview shortens its note lists until it fits and points
- * the agent at `get_song track=<id>`, which returns that one track in full.
+ * Chrome asks for a single tool output to stay near 1.5K characters, and the MCP envelope the host
+ * wraps this text in costs roughly another 200 (a quote-escaped newline per line). So a song with
+ * several dense melodic tracks shortens its note lists until it fits, and the agent is pointed at
+ * `get_song track=<id>`, which returns that one track in full. A cap of 0 drops the list entirely
+ * and keeps only its shape, which is what bounds a song full of dense tracks.
  */
-const OVERVIEW_BUDGET = 1400;
-const NOTE_CAPS = [800, 400, 200, 100, 50];
+const OVERVIEW_BUDGET = 1200;
+const NOTE_CAPS = [800, 400, 200, 100, 0];
 
 export function describeSong(
   song: Song,
@@ -114,7 +116,12 @@ export function describeSong(
     ];
     if (track.kind === "drum") lines.push(`   ${patternString(track.steps)}`);
     else if (track.notes.length === 0) lines.push("   (no notes)");
-    else lines.push(`   ${notesString(track.notes, noteCap)}`);
+    else if (noteCap === 0) {
+      const steps = track.notes.map((n) => n.step);
+      lines.push(
+        `   ${track.notes.length} notes, steps ${Math.min(...steps)}-${Math.max(...steps)} (list omitted)`,
+      );
+    } else lines.push(`   ${notesString(track.notes, noteCap)}`);
     return lines;
   };
 
@@ -140,7 +147,9 @@ export function describeSong(
         trackLines(track, index, noteCap),
       ),
     ];
-    const shortened = lines.some((line) => line.includes("… +"));
+    const shortened = lines.some(
+      (line) => line.includes("… +") || line.includes("(list omitted)"),
+    );
     if (shortened) {
       lines.push(
         'Note lists above are shortened; read one track in full with get_song track="<id>".',

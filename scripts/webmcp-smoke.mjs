@@ -509,13 +509,22 @@ const denseNotes = Array.from({ length: 64 }, (_, step) => ({
 }));
 await call("set_notes", { track: "bass", notes: denseNotes });
 await call("set_notes", { track: "Chords", notes: denseNotes });
+// ...and the guarantee has to hold at the 12-track cap, where the envelope is widest.
+const filled = [];
+for (const instrument of ["lead", "pluck", "keys", "pad", "bass", "lead"]) {
+  const added = text(await call("add_track", { instrument }));
+  if (added.track?.id) {
+    filled.push(added.track.id);
+    await call("set_notes", { track: added.track.id, notes: denseNotes });
+  }
+}
 const dense = text(await call("get_song"));
 expect(
   /shortened/.test(dense),
   "get_song shortens long note lists and says so",
   `${dense.length} chars`,
 );
-const focused = text(await call("get_song", { track: "bass" }));
+const focused = text(await call("get_song", { track: filled[0] }));
 expect(
   /\b63:G3\b/.test(focused) && !focused.includes("…"),
   "get_song track=... returns that track's notes in full",

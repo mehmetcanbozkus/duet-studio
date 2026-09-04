@@ -54,9 +54,11 @@ export function normalizePitchClass(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   const candidate = trimmed[0].toUpperCase() + trimmed.slice(1);
+  // tonal answers null for a name it cannot parse ("H", "A#b"), so an === undefined check would
+  // index the table with null and hand back undefined instead of failing.
   const chroma = Note.chroma(candidate);
-  if (chroma === undefined) return null;
-  return PITCH_CLASSES[chroma];
+  if (typeof chroma !== "number") return null;
+  return PITCH_CLASSES[chroma] ?? null;
 }
 
 /** "A2" -> 45, "C#4" -> 61. Also accepts plain MIDI numbers. */
